@@ -146,6 +146,36 @@ def extract_json(text: str):
     return json.loads(text)
 
 
+@app.route("/api/voice/wake", methods=["POST"])
+def voice_wake():
+    """Check if audio contains the wake word. Returns {detected: bool}."""
+    if "audio" not in request.files:
+        return jsonify({"error": "audio file required"}), 400
+    audio_bytes = request.files["audio"].read()
+    mime_type = request.form.get("mime_type", "audio/webm")
+    wake_word = request.form.get("wake_word", "志翔")
+
+    try:
+        client = configure_gemini()
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+
+    try:
+        from google.genai import types
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                f"这段音频中是否包含词语「{wake_word}」或其近似发音？只回答 yes 或 no，不要其他内容。",
+            ]
+        )
+        detected = "yes" in response.text.strip().lower()
+        return jsonify({"detected": detected})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"detected": False, "error": str(e)}), 500
+
+
 @app.route("/api/voice/process", methods=["POST"])
 def voice_process():
     """Send audio directly to Gemini; returns transcript + extracted work items."""
@@ -163,8 +193,8 @@ def voice_process():
     prompt = (
         "你是一个工作计划助手。用户用中文或日文说出今天的工作事项。\n"
         "请完成两件事：\n"
-        "1. 将语音内容转录为文字（transcript 字段）\n"
-        "2. 从中提取工作事项列表（items 字段），每条简洁中文描述\n"
+        "1. 将语音内容转录为文字（transcript 字段），去掉末尾的「完毕」等结束语\n"
+        "2. 从中提取工作事项列表（items 字段），每条简洁中文描述，忽略「完毕」「结束」等控制词\n"
         "只返回如下 JSON，不添加任何解释：\n"
         "{\"transcript\": \"...\", \"items\": [\"事项1\", \"事项2\"]}"
     )

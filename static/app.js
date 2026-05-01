@@ -247,6 +247,181 @@ let mediaRecorder = null;
 let audioChunks = [];
 let levelAnimId = null;
 let levelStream = null;
+let currentLevel = 0;
+
+/* ── Word detector (shared by wake & end word) ─────────────────────── */
+const WAKE_WORD = "志翔";
+const END_WORD  = "完毕";
+const SPEAK_THRESHOLD = 12;
+const MAX_CLIP_MS = 5000;
+
+function createWordDetector(word, onDetected) {
+  let active = false;
+  let stream = null;
+  let audioCtx = null;
+  let recorder = null;
+  let chunks = [];
+  let speaking = false;
+  let checkPending = false;
+  let monitorId = null;
+  let silTimer = null;
+
+  async function start() {
+    if (active) return;
+    active = true;
+    const deviceId = document.getElementById("mic-select").value;
+    const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      function monitor() {
+        if (!active) return;
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a, b) => a + b, 0) / data.length;
+        if (avg > SPEAK_THRESHOLD && !speaking && !checkPending) {
+          speaking = true;
+          startClip();
+        }
+        if (speaking && recorder && recorder.state === "recording") {
+          if (avg <= SPEAK_THRESHOLD) {
+            if (!silTimer) silTimer = setTimeout(() => {
+              if (recorder && recorder.state === "recording") recorder.stop();
+            }, 700);
+          } else { clearTimeout(silTimer); silTimer = null; }
+        }
+        monitorId = requestAnimationFrame(monitor);
+      }
+      monitor();
+    } catch (e) {
+      active = false;
+      throw e;
+    }
+  }
+
+  function stop() {
+    active = false;
+    if (monitorId) { cancelAnimationFrame(monitorId); monitorId = null; }
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    clearTimeout(silTimer); silTimer = null;
+    speaking = false; checkPending = false;
+  }
+
+  function startClip() {
+    chunks = [];
+    recorder = new MediaRecorder(stream);
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = processClip;
+    recorder.start();
+    setTimeout(() => { if (recorder && recorder.state === "recording") recorder.stop(); }, MAX_CLIP_MS);
+  }
+
+  async function processClip() {
+    speaking = false;
+    clearTimeout(silTimer); silTimer = null;
+    if (!active) return;
+    checkPending = true;
+    const mimeType = (recorder && recorder.mimeType) || "audio/webm";
+    const blob = new Blob(chunks, { type: mimeType });
+    if (blob.size < 500) { checkPending = false; return; }
+    try {
+      const form = new FormData();
+      form.append("audio", blob, "detect.webm");
+      form.append("mime_type", mimeType);
+      form.append("wake_word", word);
+      const res = await fetch("/api/voice/wake", { method: "POST", body: form });
+      const data = await res.json();
+      if (data.detected && active) { stop(); onDetected(); }
+    } catch (e) { /* keep listening */ }
+    finally { checkPending = false; }
+  }
+
+  return { start, stop };
+}
+
+/* ── Wake / end word controllers ───────────────────────────────────── */
+let wakeDetector = null;
+let endDetector  = null;
+
+async function startWakeListening() {
+  if (state.isRecording || state.isProcessing) return;
+  wakeDetector = createWordDetector(WAKE_WORD, onWakeDetected);
+  try {
+    await wakeDetector.start();
+    updateWakeUI(true);
+  } catch (e) {
+    showToast(`唤醒监听启动失败：${e.message}`, true);
+    wakeDetector = null;
+    updateWakeUI(false);
+  }
+}
+
+function stopWakeListening() {
+  if (wakeDetector) { wakeDetector.stop(); wakeDetector = null; }
+  updateWakeUI(false);
+}
+
+async function onWakeDetected() {
+  showToast(`已唤醒，说完说「${END_WORD}」结束`);
+  setMicState("recording");
+  document.getElementById("transcript-preview").textContent = "";
+  document.getElementById("wake-word-label").textContent = `录音中，说「${END_WORD}」结束…`;
+
+  const deviceId = document.getElementById("mic-select").value;
+  const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
+  audioChunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.start();
+
+  // End word detector (separate stream, same device)
+  endDetector = createWordDetector(END_WORD, async () => {
+    endDetector = null;
+    await stopRecording();
+    startWakeListening();
+  });
+  try { await endDetector.start(); } catch (e) { /* fallback to silence */ }
+
+  // Silence fallback: 8 seconds (long enough to say items + 完毕)
+  const ctx = new AudioContext();
+  const src = ctx.createMediaStreamSource(stream);
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  src.connect(analyser);
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  let silTimer = null;
+  function watchSilence() {
+    if (!state.isRecording) { ctx.close(); return; }
+    analyser.getByteFrequencyData(data);
+    const avg = data.reduce((a, b) => a + b, 0) / data.length;
+    if (avg <= SPEAK_THRESHOLD) {
+      if (!silTimer) silTimer = setTimeout(async () => {
+        ctx.close();
+        if (endDetector) { endDetector.stop(); endDetector = null; }
+        await stopRecording();
+        startWakeListening();
+      }, 8000);
+    } else { clearTimeout(silTimer); silTimer = null; }
+    requestAnimationFrame(watchSilence);
+  }
+  watchSilence();
+}
+
+function updateWakeUI(active) {
+  const btn = document.getElementById("wake-btn");
+  if (!btn) return;
+  btn.textContent = active ? "🔴 关闭唤醒" : "🎧 开启唤醒";
+  btn.classList.toggle("wake-active", active);
+  if (!active) document.getElementById("wake-word-label").textContent = "";
+  else if (!state.isRecording) document.getElementById("wake-word-label").textContent = `监听中「${WAKE_WORD}」…`;
+}
 
 async function checkMicPermission() {
   try {
@@ -483,6 +658,9 @@ async function init() {
     await populateMicDevices();
     startLevelMeter();
     document.getElementById("mic-select").addEventListener("change", () => startLevelMeter());
+    document.getElementById("wake-btn").addEventListener("click", () => {
+      wakeDetector ? stopWakeListening() : startWakeListening();
+    });
     setMicState("idle");
   }
 
