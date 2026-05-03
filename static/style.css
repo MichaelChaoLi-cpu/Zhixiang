@@ -342,6 +342,103 @@ body {
   font-style: italic;
 }
 
+/* ── Settings button ───────────────────────────────────────────────── */
+#settings-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  width: 30px; height: 30px;
+  cursor: pointer;
+  font-size: .9rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
+  margin-left: 8px;
+}
+#settings-btn:hover { background: var(--surface2); color: var(--text); }
+
+/* ── Settings modal ─────────────────────────────────────────────────── */
+#settings-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 200;
+}
+#settings-overlay.hidden { display: none; }
+
+#settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 380px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+#settings-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+#settings-header h3 { font-size: 1rem; font-weight: 600; }
+#settings-close {
+  background: none; border: none; color: var(--text-dim);
+  cursor: pointer; font-size: 1rem; padding: 4px;
+}
+#settings-close:hover { color: var(--text); }
+
+.settings-desc { font-size: .85rem; color: var(--text-dim); line-height: 1.5; }
+
+#sample-progress-row {
+  display: flex; align-items: center; gap: 12px;
+}
+#sample-dots {
+  display: flex; gap: 6px; flex: 1;
+}
+.sample-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  transition: background .2s, border-color .2s;
+}
+.sample-dot.filled { background: var(--accent); border-color: var(--accent); }
+.sample-dot.recording { background: var(--danger); border-color: var(--danger); animation: pulse 1s infinite; }
+
+#sample-count-label { font-size: .82rem; color: var(--text-dim); white-space: nowrap; }
+
+#sample-status {
+  font-size: .8rem; min-height: 18px; text-align: center;
+  color: var(--text-dim);
+}
+
+#sample-controls { display: flex; gap: 10px; }
+
+#sample-record-btn {
+  flex: 1;
+  background: var(--accent);
+  border: none; color: #fff;
+  border-radius: var(--radius);
+  padding: 10px;
+  cursor: pointer; font-size: .88rem;
+  transition: background .15s, transform .1s;
+  user-select: none; -webkit-user-select: none;
+}
+#sample-record-btn:active { transform: scale(.97); }
+#sample-record-btn.recording { background: var(--danger); }
+#sample-record-btn:disabled { background: var(--accent-soft); cursor: not-allowed; }
+
+#sample-clear-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  cursor: pointer; font-size: .82rem;
+  transition: background .15s, color .15s;
+}
+#sample-clear-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+#sample-hint { font-size: .75rem; color: var(--text-dim); text-align: center; opacity: .7; }
+
 /* ── Mic device row ────────────────────────────────────────────────── */
 #mic-device-row {
   display: flex;

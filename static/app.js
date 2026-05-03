@@ -513,9 +513,12 @@ function setMicState(s) {
   if (s === "recording") {
     statusEl.className = "recording";
     statusEl.textContent = state.isReorderMode ? "🎙️ 请说出排序指令…" : "🎙️ 录音中… 松开按钮即可处理";
+  } else if (s === "transcribing") {
+    statusEl.className = "processing";
+    statusEl.textContent = "📝 本地转录中…";
   } else if (s === "processing") {
     statusEl.className = "processing";
-    statusEl.textContent = "⏳ Gemini 处理中…";
+    statusEl.textContent = "⏳ Gemini 整理中…";
   } else {
     statusEl.className = "";
     statusEl.textContent = state.isReorderMode
@@ -543,7 +546,6 @@ async function startRecording() {
 
 async function stopRecording() {
   if (!state.isRecording || !mediaRecorder) return;
-  setMicState("processing");
 
   await new Promise(resolve => {
     mediaRecorder.onstop = resolve;
@@ -560,44 +562,73 @@ async function stopRecording() {
     return;
   }
 
+  // Step 1: local transcription
+  setMicState("transcribing");
+  let transcript = "";
+  try {
+    const form = new FormData();
+    form.append("audio", blob, "recording.webm");
+    form.append("mime_type", mimeType);
+    const res = await fetch("/api/voice/transcribe", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "转录失败");
+    transcript = data.transcript;
+    const el = document.getElementById("transcript-preview");
+    el.style.color = "";
+    el.textContent = transcript ? `"${transcript}"` : "";
+  } catch (err) {
+    setMicState("idle");
+    showError(`转录失败：${err.message}`);
+    return;
+  }
+
+  if (!transcript) {
+    setMicState("idle");
+    showToast("未识别到语音内容", true);
+    return;
+  }
+
+  // Step 2: Gemini text processing
+  setMicState("processing");
   try {
     if (state.isReorderMode) {
-      await processReorderCommand(blob, mimeType);
+      await processReorderCommand(transcript);
     } else {
-      await processAddCommand(blob, mimeType);
+      await processAddCommand(transcript);
     }
   } catch (err) {
-    showToast(`错误：${err.message}`, true);
+    showError(`错误：${err.message}`);
   } finally {
     setMicState("idle");
   }
 }
 
-async function processAddCommand(audioBlob, mimeType) {
-  const form = new FormData();
-  form.append("audio", audioBlob, "recording.webm");
-  form.append("mime_type", mimeType);
-  const res = await fetch("/api/voice/process", { method: "POST", body: form });
+async function processAddCommand(transcript) {
+  const res = await fetch("/api/voice/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transcript, date: state.selectedDate }),
+  });
   const data = await res.json();
   if (!res.ok || data.error) {
     showError(`错误：${data.error || "AI 处理失败"}`);
     throw new Error(data.error || "AI 处理失败");
   }
   if (!data.items || !data.items.length) { showToast("未识别到工作事项"); return; }
-  const el = document.getElementById("transcript-preview");
-  el.style.color = "";
-  el.textContent = data.transcript ? `"${data.transcript}"` : "";
   await addItems(data.items);
   showToast(`已添加 ${data.items.length} 条工作事项`);
 }
 
-async function processReorderCommand(audioBlob, mimeType) {
+async function processReorderCommand(transcript) {
   if (!state.items.length) { showToast("当前没有可排序的事项", true); return; }
-  const form = new FormData();
-  form.append("audio", audioBlob, "recording.webm");
-  form.append("mime_type", mimeType);
-  form.append("items", JSON.stringify(state.items.map(i => ({ id: i.id, content: i.content }))));
-  const res = await fetch("/api/voice/reorder", { method: "POST", body: form });
+  const res = await fetch("/api/voice/reorder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      command: transcript,
+      items: state.items.map(i => ({ id: i.id, content: i.content })),
+    }),
+  });
   const data = await res.json();
   if (!res.ok || data.error) {
     showError(`错误：${data.error || "排序失败"}`);
@@ -605,6 +636,124 @@ async function processReorderCommand(audioBlob, mimeType) {
   }
   await saveReorder(data.items);
   showToast("排序已更新");
+}
+
+/* ── Wake word settings panel ──────────────────────────────────────── */
+const SAMPLE_TARGET = 5;
+let sampleRecorder = null;
+let sampleChunks = [];
+
+async function loadSampleState() {
+  const res = await fetch("/api/wake/samples");
+  const data = await res.json();
+  renderSampleDots(data.count);
+  const label = document.getElementById("sample-count-label");
+  label.textContent = `${data.count} / ${SAMPLE_TARGET}`;
+  const btn = document.getElementById("sample-record-btn");
+  if (data.count >= SAMPLE_TARGET) {
+    btn.textContent = "样本已足够（可继续添加）";
+    document.getElementById("sample-status").textContent =
+      `✅ 已启用声纹检测，阈值 ${data.threshold?.toFixed(2) ?? "—"}`;
+    document.getElementById("sample-status").style.color = "var(--accent)";
+  } else {
+    btn.textContent = "按住录制样本";
+    document.getElementById("sample-status").textContent =
+      `还需录制 ${SAMPLE_TARGET - data.count} 个样本`;
+    document.getElementById("sample-status").style.color = "";
+  }
+}
+
+function renderSampleDots(count) {
+  const container = document.getElementById("sample-dots");
+  container.innerHTML = "";
+  for (let i = 0; i < SAMPLE_TARGET; i++) {
+    const dot = document.createElement("div");
+    dot.className = "sample-dot" + (i < count ? " filled" : "");
+    container.appendChild(dot);
+  }
+}
+
+function setupSettingsPanel() {
+  document.getElementById("settings-btn").addEventListener("click", async () => {
+    document.getElementById("settings-overlay").classList.remove("hidden");
+    await loadSampleState();
+  });
+  document.getElementById("settings-close").addEventListener("click", () => {
+    document.getElementById("settings-overlay").classList.add("hidden");
+  });
+  document.getElementById("settings-overlay").addEventListener("click", e => {
+    if (e.target === document.getElementById("settings-overlay"))
+      document.getElementById("settings-overlay").classList.add("hidden");
+  });
+
+  const recordBtn = document.getElementById("sample-record-btn");
+  recordBtn.addEventListener("mousedown", startSampleRecording);
+  recordBtn.addEventListener("mouseup", stopSampleRecording);
+  recordBtn.addEventListener("mouseleave", () => { if (sampleRecorder) stopSampleRecording(); });
+  recordBtn.addEventListener("touchstart", e => { e.preventDefault(); startSampleRecording(); }, { passive: false });
+  recordBtn.addEventListener("touchend", e => { e.preventDefault(); stopSampleRecording(); }, { passive: false });
+
+  document.getElementById("sample-clear-btn").addEventListener("click", async () => {
+    if (!confirm("确认清除所有唤醒词样本？")) return;
+    await fetch("/api/wake/samples", { method: "DELETE" });
+    await loadSampleState();
+    showToast("样本已清除");
+  });
+}
+
+async function startSampleRecording() {
+  if (sampleRecorder) return;
+  const deviceId = document.getElementById("mic-select").value;
+  const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    sampleChunks = [];
+    sampleRecorder = new MediaRecorder(stream);
+    sampleRecorder.ondataavailable = e => { if (e.data.size > 0) sampleChunks.push(e.data); };
+    sampleRecorder.start();
+    document.getElementById("sample-record-btn").classList.add("recording");
+    document.getElementById("sample-record-btn").textContent = "🔴 录制中…";
+    document.getElementById("sample-status").textContent = "请说「志翔」…";
+    document.getElementById("sample-status").style.color = "var(--danger)";
+  } catch (e) {
+    showToast(`无法录制：${e.message}`, true);
+  }
+}
+
+async function stopSampleRecording() {
+  if (!sampleRecorder) return;
+  const btn = document.getElementById("sample-record-btn");
+  btn.classList.remove("recording");
+  btn.disabled = true;
+
+  await new Promise(resolve => {
+    sampleRecorder.onstop = resolve;
+    sampleRecorder.stop();
+    sampleRecorder.stream.getTracks().forEach(t => t.stop());
+  });
+  sampleRecorder = null;
+
+  const mimeType = "audio/webm";
+  const blob = new Blob(sampleChunks, { type: mimeType });
+  if (blob.size < 500) {
+    document.getElementById("sample-status").textContent = "录音太短，请重试";
+    btn.disabled = false;
+    btn.textContent = "按住录制样本";
+    return;
+  }
+
+  document.getElementById("sample-status").textContent = "保存中…";
+  const form = new FormData();
+  form.append("audio", blob, "sample.webm");
+  form.append("mime_type", mimeType);
+  const res = await fetch("/api/wake/samples", { method: "POST", body: form });
+  const data = await res.json();
+  btn.disabled = false;
+  if (data.error) {
+    document.getElementById("sample-status").textContent = `错误：${data.error}`;
+  } else {
+    await loadSampleState();
+  }
 }
 
 /* ── Mode toggle ───────────────────────────────────────────────────── */
@@ -653,6 +802,7 @@ async function init() {
   setupCalNav();
   setupModeToggle();
   setupMicButton();
+  setupSettingsPanel();
   const micOk = await checkMicPermission();
   if (micOk) {
     await populateMicDevices();

@@ -14,7 +14,29 @@
     <h1>📅 日程计划</h1>
     <div class="spacer"></div>
     <span style="font-size:.78rem;color:var(--text-dim);" id="topbar-date"></span>
+    <button id="settings-btn" title="唤醒词设置">⚙️</button>
   </header>
+
+  <!-- Wake word setup modal -->
+  <div id="settings-overlay" class="hidden">
+    <div id="settings-panel">
+      <div id="settings-header">
+        <h3>唤醒词设置</h3>
+        <button id="settings-close">✕</button>
+      </div>
+      <p class="settings-desc">录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。</p>
+      <div id="sample-progress-row">
+        <div id="sample-dots"></div>
+        <span id="sample-count-label">0 / 5</span>
+      </div>
+      <div id="sample-status"></div>
+      <div id="sample-controls">
+        <button id="sample-record-btn">按住录制样本</button>
+        <button id="sample-clear-btn">清除所有样本</button>
+      </div>
+      <div id="sample-hint">建议：每次说完整的「志翔」，停顿约 1 秒后松开</div>
+    </div>
+  </div>
 
   <!-- Left: Calendar -->
   <aside id="left-panel">

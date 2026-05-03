@@ -2,6 +2,11 @@ import os
 import json
 import sqlite3
 import re
+import tempfile
+import glob
+from datetime import datetime
+import numpy as np
+from scipy.fft import dct
 from flask import Flask, request, jsonify, render_template
 from dotenv import load_dotenv
 from google import genai
@@ -10,7 +15,109 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
+DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
+LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
+WAKE_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "data", "wake_samples")
+
+
+# ── MFCC / DTW wake word matching ────────────────────────────────────────────
+
+def audio_to_numpy(audio_bytes: bytes, mime_type: str, target_sr: int = 16000) -> np.ndarray:
+    """Decode audio bytes → float32 mono numpy array via av."""
+    import av
+    suffix = ".webm" if "webm" in mime_type else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+        f.write(audio_bytes)
+        tmp = f.name
+    try:
+        container = av.open(tmp)
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(format="fltp", layout="mono", rate=target_sr)
+        chunks = []
+        for frame in container.decode(stream):
+            for rf in resampler.resample(frame):
+                chunks.append(rf.to_ndarray()[0])
+        container.close()
+        return np.concatenate(chunks).astype(np.float32) if chunks else np.zeros(target_sr, dtype=np.float32)
+    finally:
+        os.unlink(tmp)
+
+
+def compute_mfcc(y: np.ndarray, sr: int = 16000,
+                 n_mfcc: int = 20, n_fft: int = 512,
+                 hop_length: int = 160, n_mels: int = 40) -> np.ndarray:
+    """Return MFCC matrix of shape (n_mfcc, T)."""
+    # Pre-emphasis
+    y = np.append(y[0], y[1:] - 0.97 * y[:-1])
+
+    # Framing
+    num_frames = max(1, 1 + (len(y) - n_fft) // hop_length)
+    idx = (np.arange(n_fft)[None, :] +
+           np.arange(num_frames)[:, None] * hop_length)
+    idx = np.clip(idx, 0, len(y) - 1)
+    frames = y[idx] * np.hamming(n_fft)           # (T, n_fft)
+
+    # Power spectrum
+    power = (1.0 / n_fft) * np.abs(np.fft.rfft(frames, n=n_fft)) ** 2  # (T, n_fft//2+1)
+
+    # Mel filterbank
+    low_mel  = 2595 * np.log10(1 + 80 / 700)
+    high_mel = 2595 * np.log10(1 + (sr / 2) / 700)
+    mel_pts  = np.linspace(low_mel, high_mel, n_mels + 2)
+    hz_pts   = 700 * (10 ** (mel_pts / 2595) - 1)
+    bins     = np.floor((n_fft + 1) * hz_pts / sr).astype(int)
+
+    fbank = np.zeros((n_mels, n_fft // 2 + 1))
+    for m in range(1, n_mels + 1):
+        lo, mid, hi = bins[m - 1], bins[m], bins[m + 1]
+        if mid > lo:
+            fbank[m - 1, lo:mid] = (np.arange(lo, mid) - lo) / (mid - lo)
+        if hi > mid:
+            fbank[m - 1, mid:hi] = (hi - np.arange(mid, hi)) / (hi - mid)
+
+    fb = np.dot(power, fbank.T)                          # (T, n_mels)
+    fb = np.where(fb == 0, 1e-10, fb)
+    log_fb = 20 * np.log10(fb)
+
+    mfcc = dct(log_fb, type=2, axis=1, norm="ortho")[:, :n_mfcc]  # (T, n_mfcc)
+    return mfcc.T                                        # (n_mfcc, T)
+
+
+def dtw_distance(s1: np.ndarray, s2: np.ndarray) -> float:
+    """Normalized DTW distance between two MFCC matrices."""
+    n, m = s1.shape[1], s2.shape[1]
+    D = np.full((n + 1, m + 1), np.inf)
+    D[0, 0] = 0.0
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = float(np.linalg.norm(s1[:, i - 1] - s2[:, j - 1]))
+            D[i, j] = cost + min(D[i - 1, j], D[i, j - 1], D[i - 1, j - 1])
+    return float(D[n, m]) / (n + m)
+
+
+def load_wake_profiles() -> list:
+    """Load all saved MFCC sample files."""
+    paths = sorted(glob.glob(os.path.join(WAKE_SAMPLES_DIR, "sample_*.npy")))
+    return [np.load(p) for p in paths]
+
+
+def compute_threshold(profiles: list) -> float:
+    """Auto-compute detection threshold from pairwise sample distances."""
+    if len(profiles) < 2:
+        return 4.0   # conservative default
+    dists = [dtw_distance(profiles[i], profiles[j])
+             for i in range(len(profiles))
+             for j in range(i + 1, len(profiles))]
+    return float(np.median(dists)) * 2.2
+
+# Load Whisper model once at startup (downloads ~150 MB on first run)
+_whisper_model = None
+def get_whisper():
+    global _whisper_model
+    if _whisper_model is None:
+        from faster_whisper import WhisperModel
+        _whisper_model = WhisperModel("small", device="cpu", compute_type="int8")
+    return _whisper_model
 
 
 def get_db():
@@ -42,6 +149,47 @@ def configure_gemini():
     return genai.Client(api_key=api_key)
 
 
+def write_log(date: str, transcript: str, items: list):
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    log_path = os.path.join(LOGS_DIR, f"{date}.md")
+    ts = datetime.now().strftime("%H:%M")
+    lines = [f"\n## [{ts}] 语音记录\n", f"**转录：** {transcript}\n"]
+    if items:
+        lines.append("\n**提取事项：**\n")
+        for i, item in enumerate(items, 1):
+            lines.append(f"{i}. {item}\n")
+    with open(log_path, "a", encoding="utf-8") as f:
+        if os.path.getsize(log_path) == 0:
+            f.write(f"# {date} 工作日志\n")
+        f.writelines(lines)
+
+
+def transcribe_audio(audio_bytes: bytes, mime_type: str) -> str:
+    """Transcribe audio locally using faster-whisper."""
+    suffix = ".webm" if "webm" in mime_type else ".ogg" if "ogg" in mime_type else ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(audio_bytes)
+        tmp_path = tmp.name
+    try:
+        model = get_whisper()
+        segments, _ = model.transcribe(tmp_path, language="zh", task="transcribe")
+        text = "".join(seg.text for seg in segments).strip()
+        # Strip end words
+        text = re.sub(r"[，。,.]?完毕\s*$", "", text).strip()
+        return text
+    finally:
+        os.unlink(tmp_path)
+
+
+def extract_json(text: str):
+    text = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
+    start = text.find("[")
+    end = text.rfind("]")
+    if start != -1 and end != -1:
+        return json.loads(text[start:end + 1])
+    return json.loads(text)
+
+
 # ── REST API ──────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -65,7 +213,6 @@ def get_items():
 
 @app.route("/api/items/dates", methods=["GET"])
 def get_dates_with_items():
-    """Return distinct dates that have at least one item (for dot markers)."""
     conn = get_db()
     rows = conn.execute("SELECT DISTINCT date FROM work_items ORDER BY date").fetchall()
     conn.close()
@@ -81,7 +228,6 @@ def add_items():
         return jsonify({"error": "date and items required"}), 400
 
     conn = get_db()
-    # Find current max position for this date
     row = conn.execute(
         "SELECT COALESCE(MAX(position), -1) as max_pos FROM work_items WHERE date=?", (date,)
     ).fetchone()
@@ -107,7 +253,7 @@ def add_items():
 def reorder_items():
     data = request.get_json()
     date = data.get("date")
-    items = data.get("items", [])   # list of {id, content} or just ids
+    items = data.get("items", [])
     if not date or not items:
         return jsonify({"error": "date and items required"}), 400
 
@@ -132,45 +278,81 @@ def delete_item(item_id):
     return jsonify({"status": "ok"})
 
 
-# ── Voice / Gemini endpoints ──────────────────────────────────────────────────
+# ── Voice endpoints ───────────────────────────────────────────────────────────
 
-def extract_json(text: str):
-    """Try to pull a JSON array out of a freeform Gemini response."""
-    # Strip markdown code fences
-    text = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
-    # Find the first '[' ... ']' block
-    start = text.find("[")
-    end = text.rfind("]")
-    if start != -1 and end != -1:
-        return json.loads(text[start:end + 1])
-    return json.loads(text)
+@app.route("/api/voice/transcribe", methods=["POST"])
+def voice_transcribe():
+    """Transcribe audio locally with Whisper. Returns {transcript: str}."""
+    if "audio" not in request.files:
+        return jsonify({"error": "audio file required"}), 400
+    audio_bytes = request.files["audio"].read()
+    mime_type = request.form.get("mime_type", "audio/webm")
+    try:
+        transcript = transcribe_audio(audio_bytes, mime_type)
+        return jsonify({"transcript": transcript})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": f"转录失败：{str(e)}"}), 500
+
+
+@app.route("/api/wake/samples", methods=["GET"])
+def get_wake_samples():
+    paths = sorted(glob.glob(os.path.join(WAKE_SAMPLES_DIR, "sample_*.npy")))
+    profiles = [np.load(p) for p in paths]
+    threshold = compute_threshold(profiles) if profiles else None
+    return jsonify({"count": len(profiles), "threshold": threshold})
+
+
+@app.route("/api/wake/samples", methods=["POST"])
+def add_wake_sample():
+    """Record one wake word sample, extract MFCC, save."""
+    if "audio" not in request.files:
+        return jsonify({"error": "audio file required"}), 400
+    audio_bytes = request.files["audio"].read()
+    mime_type = request.form.get("mime_type", "audio/webm")
+    try:
+        y = audio_to_numpy(audio_bytes, mime_type)
+        mfcc = compute_mfcc(y)
+        os.makedirs(WAKE_SAMPLES_DIR, exist_ok=True)
+        existing = sorted(glob.glob(os.path.join(WAKE_SAMPLES_DIR, "sample_*.npy")))
+        idx = len(existing)
+        np.save(os.path.join(WAKE_SAMPLES_DIR, f"sample_{idx:02d}.npy"), mfcc)
+        return jsonify({"count": idx + 1})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/wake/samples", methods=["DELETE"])
+def clear_wake_samples():
+    for p in glob.glob(os.path.join(WAKE_SAMPLES_DIR, "sample_*.npy")):
+        os.unlink(p)
+    return jsonify({"count": 0})
 
 
 @app.route("/api/voice/wake", methods=["POST"])
 def voice_wake():
-    """Check if audio contains the wake word. Returns {detected: bool}."""
+    """Detect wake word: MFCC-DTW if samples exist, Whisper fallback otherwise."""
     if "audio" not in request.files:
         return jsonify({"error": "audio file required"}), 400
     audio_bytes = request.files["audio"].read()
     mime_type = request.form.get("mime_type", "audio/webm")
     wake_word = request.form.get("wake_word", "志翔")
-
     try:
-        client = configure_gemini()
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 500
-
-    try:
-        from google.genai import types
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                f"这段音频中是否包含词语「{wake_word}」或其近似发音？只回答 yes 或 no，不要其他内容。",
-            ]
-        )
-        detected = "yes" in response.text.strip().lower()
-        return jsonify({"detected": detected})
+        profiles = load_wake_profiles()
+        y = audio_to_numpy(audio_bytes, mime_type)
+        if len(profiles) >= 3:
+            mfcc = compute_mfcc(y)
+            threshold = compute_threshold(profiles)
+            dists = [dtw_distance(mfcc, p) for p in profiles]
+            best = min(dists)
+            detected = best < threshold
+            return jsonify({"detected": detected, "distance": round(best, 3), "threshold": round(threshold, 3)})
+        else:
+            # Fallback: Whisper text match
+            transcript = transcribe_audio(audio_bytes, mime_type)
+            detected = wake_word in transcript
+            return jsonify({"detected": detected, "transcript": transcript, "fallback": True})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"detected": False, "error": str(e)}), 500
@@ -178,12 +360,12 @@ def voice_wake():
 
 @app.route("/api/voice/process", methods=["POST"])
 def voice_process():
-    """Send audio directly to Gemini; returns transcript + extracted work items."""
-    if "audio" not in request.files:
-        return jsonify({"error": "audio file required"}), 400
-    audio_file = request.files["audio"]
-    mime_type = request.form.get("mime_type", "audio/webm")
-    audio_bytes = audio_file.read()
+    """Extract work items from text transcript using Gemini."""
+    data = request.get_json()
+    transcript = data.get("transcript", "").strip()
+    date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+    if not transcript:
+        return jsonify({"error": "transcript required"}), 400
 
     try:
         client = configure_gemini()
@@ -192,29 +374,22 @@ def voice_process():
 
     prompt = (
         "你是一个工作计划助手。用户用中文或日文说出今天的工作事项。\n"
-        "请完成两件事：\n"
-        "1. 将语音内容转录为文字（transcript 字段），去掉末尾的「完毕」等结束语\n"
-        "2. 从中提取工作事项列表（items 字段），每条简洁中文描述，忽略「完毕」「结束」等控制词\n"
-        "只返回如下 JSON，不添加任何解释：\n"
-        "{\"transcript\": \"...\", \"items\": [\"事项1\", \"事项2\"]}"
+        "请从以下转录文本中提取工作事项列表，每条简洁中文描述，忽略「完毕」「结束」等控制词。\n"
+        "只返回 JSON 数组，不添加任何解释：[\"事项1\", \"事项2\"]\n\n"
+        f"转录文本：{transcript}"
     )
 
     try:
-        from google.genai import types
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                prompt,
-            ]
+            contents=prompt
         )
-        text = response.text.strip()
-        text = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
-        result = json.loads(text)
-        return jsonify({
-            "transcript": result.get("transcript", ""),
-            "items": [str(i) for i in result.get("items", []) if str(i).strip()],
-        })
+        items = extract_json(response.text)
+        if not isinstance(items, list):
+            raise ValueError("Expected a JSON array")
+        items = [str(i) for i in items if str(i).strip()]
+        write_log(date, transcript, items)
+        return jsonify({"items": items})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
@@ -222,16 +397,12 @@ def voice_process():
 
 @app.route("/api/voice/reorder", methods=["POST"])
 def voice_reorder():
-    """Send audio + current items to Gemini; returns reordered list."""
-    if "audio" not in request.files:
-        return jsonify({"error": "audio file required"}), 400
-    audio_file = request.files["audio"]
-    mime_type = request.form.get("mime_type", "audio/webm")
-    audio_bytes = audio_file.read()
-    current_items = json.loads(request.form.get("items", "[]"))
-
-    if not current_items:
-        return jsonify({"error": "items required"}), 400
+    """Reorder items based on text command using Gemini."""
+    data = request.get_json()
+    command = data.get("command", "").strip()
+    current_items = data.get("items", [])
+    if not command or not current_items:
+        return jsonify({"error": "command and items required"}), 400
 
     try:
         client = configure_gemini()
@@ -243,27 +414,33 @@ def voice_reorder():
         for i, item in enumerate(current_items)
     )
     prompt = (
-        "你是一个工作计划助手。用户用语音发出排序指令，要求调整工作事项列表的顺序。\n"
-        "请根据语音指令，返回重新排序后的完整列表。\n"
+        "你是一个工作计划助手。根据用户的指令，重新排序工作事项列表。\n"
         "只返回 JSON 数组，每个元素是 {\"id\": <原始id>, \"content\": <内容>}，不得增减条目，不添加解释。\n"
-        f"当前列表：\n{items_text}"
+        f"当前列表：\n{items_text}\n\n"
+        f"用户指令：{command}"
     )
 
     try:
-        from google.genai import types
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                prompt,
-            ]
+            contents=prompt
         )
         reordered = extract_json(response.text)
         if not isinstance(reordered, list):
             raise ValueError("Expected a JSON array")
         return jsonify({"items": reordered})
     except Exception as e:
+        import traceback; traceback.print_exc()
         return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+
+
+@app.route("/api/logs/<date>", methods=["GET"])
+def get_log(date):
+    log_path = os.path.join(LOGS_DIR, f"{date}.md")
+    if not os.path.exists(log_path):
+        return jsonify({"content": ""})
+    with open(log_path, encoding="utf-8") as f:
+        return jsonify({"content": f.read()})
 
 
 if __name__ == "__main__":

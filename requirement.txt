@@ -3,3 +3,5 @@ wheel==0.45.1
 flask
 google-genai
 python-dotenv
+faster-whisper
+scipy
