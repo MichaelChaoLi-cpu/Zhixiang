@@ -38,6 +38,24 @@
     </div>
   </div>
 
+  <!-- AI Plan preview modal -->
+  <div id="ai-plan-overlay" class="hidden">
+    <div id="ai-plan-panel">
+      <div id="ai-plan-header">
+        <h3>✨ AI 规划预览</h3>
+        <button id="ai-plan-close">✕</button>
+      </div>
+      <div id="ai-plan-body">
+        <div id="ai-plan-loading">正在生成规划…</div>
+        <div id="ai-plan-list" class="hidden"></div>
+      </div>
+      <div id="ai-plan-footer" class="hidden">
+        <button id="ai-plan-cancel">取消</button>
+        <button id="ai-plan-apply">应用规划</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Left: Calendar -->
   <aside id="left-panel">
     <div class="cal-header">
@@ -52,19 +70,38 @@
     <div class="cal-grid" id="cal-grid"></div>
   </aside>
 
-  <!-- Right: Items -->
+  <!-- Right: Timeline & controls -->
   <main id="right-panel">
     <div id="right-header">
       <h2 id="selected-date-label">—</h2>
       <div class="spacer"></div>
+      <button id="ai-plan-btn">✨ AI 规划</button>
       <div id="mode-toggle">
         <span>模式：</span>
         <button id="mode-btn">排序模式</button>
       </div>
     </div>
 
-    <div id="items-container">
-      <ul id="items-list"></ul>
+    <!-- Manual task input -->
+    <div id="manual-input-row">
+      <input id="manual-input" type="text" placeholder="输入任务，如：下午2点开会一小时" autocomplete="off" />
+      <button id="manual-add-btn">添加</button>
+    </div>
+
+    <!-- Timeline -->
+    <div id="timeline-wrapper">
+      <div id="timeline-axis"></div>
+      <div id="timeline-tracks"></div>
+    </div>
+
+    <!-- Task pool (collapsible) -->
+    <div id="pool-section">
+      <div id="pool-header">
+        <span>任务池</span>
+        <span id="pool-count">0</span>
+        <button id="pool-toggle">▼</button>
+      </div>
+      <div id="pool-list"></div>
     </div>
 
     <!-- Voice input -->
@@ -92,7 +129,6 @@
 
 <script src="/static/app.js"></script>
 <script>
-  // Show today's date in topbar
   document.getElementById("topbar-date").textContent =
     new Date().toLocaleDateString("zh-CN", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 </script>
