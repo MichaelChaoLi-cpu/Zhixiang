@@ -18,6 +18,7 @@ app = Flask(__name__)
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
 WAKE_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "data", "wake_samples")
+ENV_PATH         = os.path.join(os.path.dirname(__file__), ".env")
 
 
 # ── MFCC / DTW wake word matching ────────────────────────────────────────────
@@ -837,6 +838,63 @@ def get_log(date):
         return jsonify({"content": ""})
     with open(log_path, encoding="utf-8") as f:
         return jsonify({"content": f.read()})
+
+
+# ── API key management ────────────────────────────────────────────────────────
+
+def _env_set_key(key: str, value: str):
+    """Write or update a key=value line in .env without touching other lines."""
+    lines = []
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, encoding="utf-8") as f:
+            lines = f.readlines()
+    updated = False
+    for i, line in enumerate(lines):
+        if re.match(rf"^\s*{re.escape(key)}\s*=", line):
+            lines[i] = f"{key}={value}\n"
+            updated = True
+            break
+    if not updated:
+        lines.append(f"{key}={value}\n")
+    with open(ENV_PATH, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    os.environ[key] = value
+
+
+def _env_delete_key(key: str):
+    """Remove a key line from .env and unset from os.environ."""
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, encoding="utf-8") as f:
+            lines = f.readlines()
+        lines = [l for l in lines if not re.match(rf"^\s*{re.escape(key)}\s*=", l)]
+        with open(ENV_PATH, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    os.environ.pop(key, None)
+
+
+@app.route("/api/settings/apikey", methods=["GET"])
+def apikey_status():
+    """Return whether GEMINI_API_KEY is configured — never return the key itself."""
+    has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    return jsonify({"configured": has_key})
+
+
+@app.route("/api/settings/apikey", methods=["POST"])
+def apikey_set():
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "key is required"}), 400
+    if not key.startswith("AI") or len(key) < 20:
+        return jsonify({"error": "API key 格式不正确"}), 400
+    _env_set_key("GEMINI_API_KEY", key)
+    return jsonify({"configured": True})
+
+
+@app.route("/api/settings/apikey", methods=["DELETE"])
+def apikey_delete():
+    _env_delete_key("GEMINI_API_KEY")
+    return jsonify({"configured": False})
 
 
 if __name__ == "__main__":

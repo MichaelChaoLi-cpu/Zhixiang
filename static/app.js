@@ -1352,6 +1352,7 @@ function renderSampleDots(count) {
 function setupSettingsPanel() {
   document.getElementById("settings-btn").addEventListener("click", async () => {
     document.getElementById("settings-overlay").classList.remove("hidden");
+    await loadApikeyStatus();
     await loadSampleState();
   });
   document.getElementById("settings-close").addEventListener("click", () => {
@@ -1430,6 +1431,53 @@ async function stopSampleRecording() {
   } else {
     await loadSampleState();
   }
+}
+
+/* ── API key management ──────────────────────────────────────────────── */
+async function loadApikeyStatus() {
+  const res  = await fetch("/api/settings/apikey");
+  const data = await res.json();
+  document.getElementById("apikey-configured").classList.toggle("hidden", !data.configured);
+  document.getElementById("apikey-form").classList.toggle("hidden",       data.configured);
+  document.getElementById("apikey-msg").textContent = "";
+
+  const deleteBtn = document.getElementById("apikey-delete-btn");
+  const saveBtn   = document.getElementById("apikey-save-btn");
+  const input     = document.getElementById("apikey-input");
+
+  // Re-bind to avoid duplicate listeners
+  deleteBtn.replaceWith(deleteBtn.cloneNode(true));
+  saveBtn.replaceWith(saveBtn.cloneNode(true));
+
+  document.getElementById("apikey-delete-btn").addEventListener("click", async () => {
+    if (!confirm("确定要删除 API Key 吗？删除后 AI 功能将不可用。")) return;
+    await fetch("/api/settings/apikey", { method: "DELETE" });
+    await loadApikeyStatus();
+  });
+
+  async function saveKey() {
+    const key = document.getElementById("apikey-input").value.trim();
+    if (!key) return;
+    const res  = await fetch("/api/settings/apikey", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    const data = await res.json();
+    const msg  = document.getElementById("apikey-msg");
+    if (!res.ok) {
+      msg.textContent = data.error || "保存失败";
+      msg.style.color = "var(--danger)";
+    } else {
+      document.getElementById("apikey-input").value = "";
+      await loadApikeyStatus();
+    }
+  }
+
+  document.getElementById("apikey-save-btn").addEventListener("click", saveKey);
+  document.getElementById("apikey-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") saveKey();
+  });
 }
 
 /* ── Mode toggle ───────────────────────────────────────────────────── */

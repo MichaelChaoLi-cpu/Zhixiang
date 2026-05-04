@@ -994,6 +994,79 @@ body {
 
 .settings-desc { font-size: .85rem; color: var(--text-dim); line-height: 1.5; }
 
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section:last-child { border-bottom: none; padding-bottom: 0; }
+
+.settings-section-title {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+#apikey-configured {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.apikey-status {
+  font-size: .85rem;
+  color: var(--success);
+  flex: 1;
+}
+.settings-danger-btn {
+  background: none;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: .78rem;
+  cursor: pointer;
+  transition: background .15s;
+}
+.settings-danger-btn:hover { background: rgba(255,92,114,.12); }
+
+#apikey-form {
+  display: flex;
+  gap: 6px;
+}
+#apikey-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-size: .83rem;
+  padding: 5px 10px;
+  outline: none;
+  transition: border-color .15s;
+}
+#apikey-input:focus { border-color: var(--accent); }
+#apikey-save-btn {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 7px;
+  padding: 5px 14px;
+  font-size: .83rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+#apikey-save-btn:hover { background: var(--accent); color: #fff; }
+
+.settings-msg {
+  font-size: .78rem;
+  min-height: 16px;
+}
+
 #sample-progress-row {
   display: flex; align-items: center; gap: 12px;
 }
