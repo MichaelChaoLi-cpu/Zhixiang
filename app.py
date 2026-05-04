@@ -451,20 +451,21 @@ def extend_item(item_id):
     new_duration = (item["duration_min"] or 60) + extra_min
     conn.execute("UPDATE work_items SET duration_min=? WHERE id=?", (new_duration, item_id))
 
-    # Push subsequent items forward if this item has a start_time
+    # Only push tasks that now overlap due to the extension.
+    # A task overlaps only if its start_time falls within [old_end, new_end).
     if item.get("start_time"):
-        end_time_mins = time_to_minutes(item["start_time"]) + (item["duration_min"] or 60)
-        end_time_str = minutes_to_time(end_time_mins)
+        old_end_mins = time_to_minutes(item["start_time"]) + (item["duration_min"] or 60)
+        new_end_mins = old_end_mins + extra_min
         later = conn.execute(
             """SELECT id, start_time FROM work_items
-               WHERE date=? AND start_time >= ? AND id != ? AND start_time IS NOT NULL""",
-            (item["date"], end_time_str, item_id)
+               WHERE date=? AND start_time >= ? AND start_time < ? AND id != ?
+                 AND start_time IS NOT NULL""",
+            (item["date"], minutes_to_time(old_end_mins), minutes_to_time(new_end_mins), item_id)
         ).fetchall()
         for row in later:
-            mins = time_to_minutes(row["start_time"]) + extra_min
             conn.execute(
                 "UPDATE work_items SET start_time=? WHERE id=?",
-                (minutes_to_time(mins), row["id"])
+                (minutes_to_time(new_end_mins), row["id"])
             )
 
     conn.commit()
