@@ -655,6 +655,22 @@ async function schedulePoolItem(poolId) {
   showToast("已从任务池移至日程");
 }
 
+/* ── CSV Export ──────────────────────────────────────────────────────── */
+function setupExport() {
+  const today = formatDate(new Date());
+  const firstOfMonth = today.slice(0, 8) + "01";
+  document.getElementById("export-from").value = firstOfMonth;
+  document.getElementById("export-to").value   = today;
+
+  document.getElementById("export-btn").addEventListener("click", () => {
+    const from = document.getElementById("export-from").value;
+    const to   = document.getElementById("export-to").value;
+    if (!from || !to) { showToast("请选择起止日期", true); return; }
+    if (from > to)    { showToast("起始日期不能晚于结束日期", true); return; }
+    window.location.href = `/api/export/csv?from=${from}&to=${to}`;
+  });
+}
+
 /* ── Theme toggle ────────────────────────────────────────────────────── */
 function setupThemeToggle() {
   const btn = document.getElementById("theme-btn");
@@ -1443,7 +1459,6 @@ async function loadApikeyStatus() {
 
   const deleteBtn = document.getElementById("apikey-delete-btn");
   const saveBtn   = document.getElementById("apikey-save-btn");
-  const input     = document.getElementById("apikey-input");
 
   // Re-bind to avoid duplicate listeners
   deleteBtn.replaceWith(deleteBtn.cloneNode(true));
@@ -1523,6 +1538,7 @@ async function init() {
   setupModeToggle();
   setupMicButton();
   setupThemeToggle();
+  setupExport();
   setupSettingsPanel();
   setupAIPlan();
   setupPoolToggle();

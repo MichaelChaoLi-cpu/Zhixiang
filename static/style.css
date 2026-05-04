@@ -127,6 +127,57 @@ body {
   gap: 3px;
 }
 
+/* CSV export section */
+#export-section {
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.export-title {
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .78rem;
+  color: var(--text-dim);
+}
+.export-row label { width: 16px; flex-shrink: 0; }
+.export-row input[type="date"] {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: .78rem;
+  padding: 3px 6px;
+  outline: none;
+  cursor: pointer;
+  color-scheme: dark;
+}
+[data-theme="light"] .export-row input[type="date"] { color-scheme: light; }
+.export-row input[type="date"]:focus { border-color: var(--accent); }
+#export-btn {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 5px 0;
+  font-size: .8rem;
+  cursor: pointer;
+  transition: background .15s;
+  width: 100%;
+}
+#export-btn:hover { background: var(--accent); color: #fff; }
+
 .cal-day {
   position: relative;
   aspect-ratio: 1;

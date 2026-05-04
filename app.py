@@ -1,4 +1,6 @@
 import os
+import io
+import csv
 import json
 import sqlite3
 import re
@@ -7,7 +9,7 @@ import glob
 from datetime import datetime
 import numpy as np
 from scipy.fft import dct
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from dotenv import load_dotenv
 from google import genai
 
@@ -829,6 +831,46 @@ def voice_reorder():
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+
+
+@app.route("/api/export/csv", methods=["GET"])
+def export_csv():
+    date_from = request.args.get("from", "")
+    date_to   = request.args.get("to",   "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from or ""):
+        return jsonify({"error": "invalid 'from' date"}), 400
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to or ""):
+        return jsonify({"error": "invalid 'to' date"}), 400
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT date, start_time, duration_min, content, description,
+                  status, parallel_group, parallel_reason, created_at
+           FROM work_items
+           WHERE date >= ? AND date <= ?
+           ORDER BY date ASC, start_time ASC NULLS LAST, position ASC""",
+        (date_from, date_to)
+    ).fetchall()
+    conn.close()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["日期", "开始时间", "时长(分钟)", "任务名", "说明",
+                     "状态", "并行组", "并行说明", "创建时间"])
+    for r in rows:
+        writer.writerow([
+            r["date"], r["start_time"] or "", r["duration_min"] or 60,
+            r["content"], r["description"] or "",
+            r["status"] or "pending", r["parallel_group"] or "",
+            r["parallel_reason"] or "", r["created_at"]
+        ])
+
+    filename = f"schedule_{date_from}_{date_to}.csv"
+    return Response(
+        "﻿" + buf.getvalue(),   # UTF-8 BOM for Excel
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
 
 
 @app.route("/api/logs/<date>", methods=["GET"])
