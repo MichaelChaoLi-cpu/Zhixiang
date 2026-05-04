@@ -1016,6 +1016,13 @@ def apikey_delete():
 
 
 if __name__ == "__main__":
+    import threading, webbrowser
     init_db()
     port = int(os.environ.get("PORT", 4096))
+    # Open browser after server starts (only on first launch, not reloader reload)
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        def _open():
+            import time; time.sleep(1.2)
+            webbrowser.open(f"http://localhost:{port}")
+        threading.Thread(target=_open, daemon=True).start()
     app.run(debug=True, port=port)
