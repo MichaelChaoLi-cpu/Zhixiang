@@ -997,11 +997,25 @@ def _env_delete_key(key: str):
     os.environ.pop(key, None)
 
 
+def _env_read_key(key: str) -> str:
+    """Read a key's value directly from the .env file (ignores system env vars)."""
+    if not os.path.exists(ENV_PATH):
+        return ""
+    with open(ENV_PATH, encoding="utf-8") as f:
+        for line in f:
+            m = re.match(rf"^\s*{re.escape(key)}\s*=\s*(.+)$", line.rstrip())
+            if m:
+                return m.group(1).strip().strip('"').strip("'")
+    return ""
+
+
 @app.route("/api/settings/apikey", methods=["GET"])
 def apikey_status():
-    """Return whether GEMINI_API_KEY is configured — never return the key itself."""
-    has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
-    return jsonify({"configured": has_key})
+    """Return whether GEMINI_API_KEY is in .env — never return the key itself."""
+    has_key = bool(_env_read_key("GEMINI_API_KEY"))
+    resp = jsonify({"configured": has_key})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/api/settings/apikey", methods=["POST"])
@@ -1010,8 +1024,8 @@ def apikey_set():
     key = (data.get("key") or "").strip()
     if not key:
         return jsonify({"error": "key is required"}), 400
-    if not key.startswith("AI") or len(key) < 20:
-        return jsonify({"error": "API key 格式不正确"}), 400
+    if len(key) < 10:
+        return jsonify({"error": "API key 太短，请确认复制完整"}), 400
     _env_set_key("GEMINI_API_KEY", key)
     return jsonify({"configured": True})
 
