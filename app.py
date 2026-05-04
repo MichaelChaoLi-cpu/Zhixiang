@@ -741,19 +741,20 @@ def voice_process():
     except ValueError as e:
         return jsonify({"error": str(e)}), 500
 
-    today      = datetime.now()
-    today_str  = today.strftime("%Y-%m-%d")
-    weekday_cn = ["一","二","三","四","五","六","日"][today.weekday()]
+    now        = datetime.now()
+    today_str  = now.strftime("%Y-%m-%d")
+    now_str    = now.strftime("%H:%M")
+    weekday_cn = ["一","二","三","四","五","六","日"][now.weekday()]
 
     prompt = (
-        f"今天是 {today_str}，星期{weekday_cn}。\n"
-        "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期信息（如「明天」「后天」「下周一」「5月10日」等）。\n"
+        f"今天是 {today_str}，星期{weekday_cn}，当前时刻是 {now_str}。\n"
+        "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期或时间信息。\n"
         "请解析为以下 JSON 对象，字段说明：\n"
         "- content：简洁的任务名（5-15字）\n"
         "- description：任务的详细说明（如有则填写，否则为空字符串）\n"
         "- duration_min：任务时长（分钟整数），如未提及则默认 60\n"
-        "- start_time：开始时间，格式 \"HH:MM\"，如未提及则为 null\n"
-        "- date：任务日期，格式 \"YYYY-MM-DD\"，如未提及日期则为 null\n\n"
+        f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」「立刻」解析为 {now_str}；如未提及则为 null\n"
+        "- date：任务日期，格式 \"YYYY-MM-DD\"，「明天」「后天」「下周X」「X月X日」等需计算；如未提及日期则为 null\n\n"
         "忽略「完毕」「结束」等控制词。只返回 JSON，不添加任何解释：\n"
         "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, "
         "\"start_time\": null, \"date\": null}\n\n"
