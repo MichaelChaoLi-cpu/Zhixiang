@@ -571,12 +571,21 @@ function showExtendDialog(id, anchorBtn) {
 }
 
 async function addItems(itemsPayload) {
-  const res = await fetch("/api/items", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date: state.selectedDate, items: itemsPayload }),
-  });
-  if (!res.ok) throw new Error("Failed to save items");
+  // Group by date (items may carry their own date field)
+  const byDate = {};
+  for (const item of itemsPayload) {
+    const d = item.date || state.selectedDate;
+    if (!byDate[d]) byDate[d] = [];
+    byDate[d].push(item);
+  }
+  for (const [date, items] of Object.entries(byDate)) {
+    const res = await fetch("/api/items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, items }),
+    });
+    if (!res.ok) throw new Error("Failed to save items");
+  }
   await loadItems();
   await loadDatesWithItems();
 }
@@ -1253,7 +1262,14 @@ async function processAddCommand(transcript) {
   }
   if (!data.items || !data.items.length) { showToast("未识别到工作事项"); return; }
   await addItems(data.items);
-  showToast(`已添加 ${data.items.length} 条工作事项`);
+
+  const item     = data.items[0];
+  const taskDate = item.date || state.selectedDate;
+  if (taskDate !== state.selectedDate) {
+    showToast(`已添加到 ${friendlyDate(taskDate)}`);
+  } else {
+    showToast("已添加工作事项");
+  }
 }
 
 async function processReorderCommand(transcript) {

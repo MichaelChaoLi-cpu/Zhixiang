@@ -731,8 +731,8 @@ def voice_wake():
 def voice_process():
     """Extract work items (with duration) from text transcript using Gemini."""
     data = request.get_json()
-    transcript = data.get("transcript", "").strip()
-    date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+    transcript  = data.get("transcript", "").strip()
+    client_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
     if not transcript:
         return jsonify({"error": "transcript required"}), 400
 
@@ -741,15 +741,22 @@ def voice_process():
     except ValueError as e:
         return jsonify({"error": str(e)}), 500
 
+    today      = datetime.now()
+    today_str  = today.strftime("%Y-%m-%d")
+    weekday_cn = ["一","二","三","四","五","六","日"][today.weekday()]
+
     prompt = (
-        "你是一个工作计划助手。用户用一句话描述一个工作事项。\n"
-        "请将以下转录文本解析为一个工作任务，返回 JSON 对象，字段说明：\n"
+        f"今天是 {today_str}，星期{weekday_cn}。\n"
+        "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期信息（如「明天」「后天」「下周一」「5月10日」等）。\n"
+        "请解析为以下 JSON 对象，字段说明：\n"
         "- content：简洁的任务名（5-15字）\n"
-        "- description：任务的详细说明（如有具体内容则填写，否则为空字符串）\n"
+        "- description：任务的详细说明（如有则填写，否则为空字符串）\n"
         "- duration_min：任务时长（分钟整数），如未提及则默认 60\n"
-        "- start_time：开始时间，格式 \"HH:MM\"，如未提及则为 null\n\n"
+        "- start_time：开始时间，格式 \"HH:MM\"，如未提及则为 null\n"
+        "- date：任务日期，格式 \"YYYY-MM-DD\"，如未提及日期则为 null\n\n"
         "忽略「完毕」「结束」等控制词。只返回 JSON，不添加任何解释：\n"
-        "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, \"start_time\": null}\n\n"
+        "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, "
+        "\"start_time\": null, \"date\": null}\n\n"
         f"转录文本：{transcript}"
     )
 
@@ -763,16 +770,20 @@ def voice_process():
             item = item[0] if item else {}
         if not isinstance(item, dict):
             raise ValueError("Expected a JSON object")
-        content     = str(item.get("content", "")).strip()
-        description = str(item.get("description", "")).strip()
+        content      = str(item.get("content", "")).strip()
+        description  = str(item.get("description", "")).strip()
         duration_min = int(item.get("duration_min", 60) or 60)
-        raw_time    = item.get("start_time")
-        start_time  = raw_time if (raw_time and re.match(r"^\d{2}:\d{2}$", str(raw_time))) else None
+        raw_time     = item.get("start_time")
+        start_time   = raw_time if (raw_time and re.match(r"^\d{2}:\d{2}$", str(raw_time))) else None
+        raw_date     = item.get("date")
+        task_date    = raw_date if (raw_date and re.match(r"^\d{4}-\d{2}-\d{2}$", str(raw_date))) \
+                       else client_date
         if not content:
             raise ValueError("Empty task content")
         normalized = [{"content": content, "description": description,
-                       "duration_min": duration_min, "start_time": start_time}]
-        write_log(date, transcript, normalized)
+                       "duration_min": duration_min, "start_time": start_time,
+                       "date": task_date}]
+        write_log(task_date, transcript, normalized)
         return jsonify({"items": normalized, "transcript": transcript})
     except Exception as e:
         import traceback; traceback.print_exc()
