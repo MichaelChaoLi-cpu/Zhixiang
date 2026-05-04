@@ -165,7 +165,12 @@ body {
 }
 [data-theme="light"] .export-row input[type="date"] { color-scheme: light; }
 .export-row input[type="date"]:focus { border-color: var(--accent); }
-#export-btn {
+.export-btns {
+  display: flex;
+  gap: 6px;
+}
+.export-btns button {
+  flex: 1;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent);
@@ -174,9 +179,8 @@ body {
   font-size: .8rem;
   cursor: pointer;
   transition: background .15s;
-  width: 100%;
 }
-#export-btn:hover { background: var(--accent); color: #fff; }
+.export-btns button:hover { background: var(--accent); color: #fff; }
 
 .cal-day {
   position: relative;

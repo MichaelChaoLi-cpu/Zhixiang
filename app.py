@@ -873,6 +873,81 @@ def export_csv():
     )
 
 
+@app.route("/api/export/ics", methods=["GET"])
+def export_ics():
+    date_from = request.args.get("from", "")
+    date_to   = request.args.get("to",   "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from or ""):
+        return jsonify({"error": "invalid 'from' date"}), 400
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to or ""):
+        return jsonify({"error": "invalid 'to' date"}), 400
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT id, date, start_time, duration_min, content, description, status, created_at
+           FROM work_items
+           WHERE date >= ? AND date <= ? AND status != 'suspended'
+           ORDER BY date ASC, start_time ASC NULLS LAST, position ASC""",
+        (date_from, date_to)
+    ).fetchall()
+    conn.close()
+
+    from datetime import timezone
+    now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Zhixiang//Schedule//ZH",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:志翔日程",
+        "X-WR-TIMEZONE:Asia/Tokyo",
+    ]
+
+    for r in rows:
+        date_compact = r["date"].replace("-", "")
+        uid = f"zhixiang-{r['id']}@schedule"
+
+        if r["start_time"]:
+            hh, mm = r["start_time"].split(":")
+            dur = int(r["duration_min"] or 60)
+            end_total = int(hh) * 60 + int(mm) + dur
+            end_hh, end_mm = divmod(end_total, 60)
+            dtstart = f"DTSTART;TZID=Asia/Tokyo:{date_compact}T{hh}{mm}00"
+            dtend   = f"DTEND;TZID=Asia/Tokyo:{date_compact}T{end_hh:02d}{end_mm:02d}00"
+        else:
+            # All-day event
+            dtstart = f"DTSTART;VALUE=DATE:{date_compact}"
+            dtend   = f"DTEND;VALUE=DATE:{date_compact}"
+
+        summary = r["content"].replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+        desc = (r["description"] or "").replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+        status_map = {"completed": "CONFIRMED", "pending": "TENTATIVE"}
+        vstatus = status_map.get(r["status"] or "pending", "TENTATIVE")
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now_stamp}",
+            dtstart,
+            dtend,
+            f"SUMMARY:{summary}",
+            *([ f"DESCRIPTION:{desc}" ] if desc else []),
+            f"STATUS:{vstatus}",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    content = "\r\n".join(lines) + "\r\n"
+
+    filename = f"schedule_{date_from}_{date_to}.ics"
+    return Response(
+        content,
+        mimetype="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
 @app.route("/api/logs/<date>", methods=["GET"])
 def get_log(date):
     log_path = os.path.join(LOGS_DIR, f"{date}.md")

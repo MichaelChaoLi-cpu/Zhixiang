@@ -662,12 +662,22 @@ function setupExport() {
   document.getElementById("export-from").value = firstOfMonth;
   document.getElementById("export-to").value   = today;
 
-  document.getElementById("export-btn").addEventListener("click", () => {
+  function getDateRange() {
     const from = document.getElementById("export-from").value;
     const to   = document.getElementById("export-to").value;
-    if (!from || !to) { showToast("请选择起止日期", true); return; }
-    if (from > to)    { showToast("起始日期不能晚于结束日期", true); return; }
-    window.location.href = `/api/export/csv?from=${from}&to=${to}`;
+    if (!from || !to) { showToast("请选择起止日期", true); return null; }
+    if (from > to)    { showToast("起始日期不能晚于结束日期", true); return null; }
+    return { from, to };
+  }
+
+  document.getElementById("export-csv-btn").addEventListener("click", () => {
+    const r = getDateRange();
+    if (r) window.location.href = `/api/export/csv?from=${r.from}&to=${r.to}`;
+  });
+
+  document.getElementById("export-ics-btn").addEventListener("click", () => {
+    const r = getDateRange();
+    if (r) window.location.href = `/api/export/ics?from=${r.from}&to=${r.to}`;
   });
 }
 
