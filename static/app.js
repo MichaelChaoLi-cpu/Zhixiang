@@ -1378,7 +1378,7 @@ function renderSampleDots(count) {
 function setupSettingsPanel() {
   document.getElementById("settings-btn").addEventListener("click", async () => {
     document.getElementById("settings-overlay").classList.remove("hidden");
-    await loadApikeyStatus();
+    await loadLLMSettings();
     await loadSampleState();
   });
   document.getElementById("settings-close").addEventListener("click", () => {
@@ -1459,50 +1459,81 @@ async function stopSampleRecording() {
   }
 }
 
-/* ── API key management ──────────────────────────────────────────────── */
-async function loadApikeyStatus() {
-  const res  = await fetch("/api/settings/apikey", { cache: "no-store" });
+/* ── LLM settings ────────────────────────────────────────────────────── */
+async function loadLLMSettings() {
+  const { provider } = await (await fetch("/api/settings/llm", { cache: "no-store" })).json();
+
+  // Highlight active provider button
+  document.getElementById("llm-btn-gemini").classList.toggle("active", provider === "gemini");
+  document.getElementById("llm-btn-deepseek").classList.toggle("active", provider === "deepseek");
+
+  // Show/hide key sections
+  document.getElementById("gemini-key-section").classList.toggle("hidden", provider !== "gemini");
+  document.getElementById("deepseek-key-section").classList.toggle("hidden", provider !== "deepseek");
+
+  await loadKeySection("gemini",   "/api/settings/apikey");
+  await loadKeySection("deepseek", "/api/settings/deepseek_apikey");
+
+  // Provider switch buttons
+  for (const p of ["gemini", "deepseek"]) {
+    const btn = document.getElementById(`llm-btn-${p}`);
+    btn.replaceWith(btn.cloneNode(true));
+    document.getElementById(`llm-btn-${p}`).addEventListener("click", async () => {
+      await fetch("/api/settings/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: p }),
+      });
+      await loadLLMSettings();
+    });
+  }
+}
+
+async function loadKeySection(provider, endpoint) {
+  const res  = await fetch(endpoint, { cache: "no-store" });
   const data = await res.json();
-  document.getElementById("apikey-configured").classList.toggle("hidden", !data.configured);
-  document.getElementById("apikey-form").classList.toggle("hidden",       data.configured);
-  document.getElementById("apikey-msg").textContent = "";
+  const configuredEl = document.getElementById(`${provider}-configured`);
+  const formEl       = document.getElementById(`${provider}-form`);
+  const msgEl        = document.getElementById(`${provider}-msg`);
 
-  const deleteBtn = document.getElementById("apikey-delete-btn");
-  const saveBtn   = document.getElementById("apikey-save-btn");
+  configuredEl.classList.toggle("hidden", !data.configured);
+  formEl.classList.toggle("hidden", data.configured);
+  msgEl.textContent = "";
 
-  // Re-bind to avoid duplicate listeners
+  // Re-bind buttons
+  const deleteBtn = document.getElementById(`${provider}-delete-btn`);
+  const saveBtn   = document.getElementById(`${provider}-save-btn`);
+  const inputEl   = document.getElementById(`${provider}-input`);
   deleteBtn.replaceWith(deleteBtn.cloneNode(true));
   saveBtn.replaceWith(saveBtn.cloneNode(true));
 
-  document.getElementById("apikey-delete-btn").addEventListener("click", async () => {
-    if (!confirm("确定要删除 API Key 吗？删除后 AI 功能将不可用。")) return;
-    await fetch("/api/settings/apikey", { method: "DELETE" });
-    await loadApikeyStatus();
+  document.getElementById(`${provider}-delete-btn`).addEventListener("click", async () => {
+    if (!confirm("确定要删除 API Key 吗？")) return;
+    await fetch(endpoint, { method: "DELETE" });
+    await loadKeySection(provider, endpoint);
   });
 
   async function saveKey() {
-    const key = document.getElementById("apikey-input").value.trim();
+    const key = document.getElementById(`${provider}-input`).value.trim();
     if (!key) return;
-    const res  = await fetch("/api/settings/apikey", {
+    const r    = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key }),
     });
-    const data = await res.json();
-    const msg  = document.getElementById("apikey-msg");
-    if (!res.ok) {
-      msg.textContent = data.error || "保存失败";
+    const d   = await r.json();
+    const msg = document.getElementById(`${provider}-msg`);
+    if (!r.ok) {
+      msg.textContent = d.error || "保存失败";
       msg.style.color = "var(--danger)";
     } else {
-      document.getElementById("apikey-input").value = "";
-      await loadApikeyStatus();
+      document.getElementById(`${provider}-input`).value = "";
+      await loadKeySection(provider, endpoint);
     }
   }
 
-  document.getElementById("apikey-save-btn").addEventListener("click", saveKey);
-  document.getElementById("apikey-input").addEventListener("keydown", e => {
-    if (e.key === "Enter") saveKey();
-  });
+  document.getElementById(`${provider}-save-btn`).addEventListener("click", saveKey);
+  inputEl.addEventListener("keydown", e => { if (e.key === "Enter") saveKey(); });
 }
 
 /* ── Mode toggle ───────────────────────────────────────────────────── */
