@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV_DIR="$REPO_DIR/.venv"
 
 echo ""
 echo "╔══════════════════════════════════╗"
@@ -9,25 +10,45 @@ echo "╚═══════════════════════�
 echo ""
 
 # ── 1. 检查 Python ───────────────────────────────────────────────────────────
-if ! command -v python3 &>/dev/null; then
-    echo "✗ 未找到 python3，请先安装 Python 3.9+"
+if command -v python3.12 &>/dev/null; then
+    PYTHON_BIN="python3.12"
+elif command -v python3 &>/dev/null; then
+    PYTHON_BIN="python3"
+else
+    echo "✗ 未找到 python3，请先安装 Python 3.12"
+    echo "  https://www.python.org/downloads/"
     exit 1
 fi
-PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-echo "→ Python $PY_VER"
+PY_VER=$("$PYTHON_BIN" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+echo "→ Python $PY_VER（推荐 3.12）"
 
-# ── 2. 创建虚拟环境 ───────────────────────────────────────────────────────────
-if [ ! -d "$REPO_DIR/.venv" ]; then
-    echo "→ 创建虚拟环境..."
-    python3 -m venv "$REPO_DIR/.venv"
-else
-    echo "→ 虚拟环境已存在，跳过"
+# ── 2. 创建虚拟环境（仅当 Zhixiang venv 存在且为 3.12 时跳过）──────────────────
+NEED_VENV=true
+if [ -f "$VENV_DIR/bin/python" ]; then
+    VENV_VER=$("$VENV_DIR/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "")
+    if [ "$VENV_VER" = "3.12" ]; then
+        echo "→ 虚拟环境 .venv（Python 3.12）已存在，跳过"
+        NEED_VENV=false
+    else
+        echo "→ 虚拟环境 .venv 存在但 Python 版本为 $VENV_VER，重新创建..."
+        rm -rf "$VENV_DIR"
+    fi
+fi
+
+if [ "$NEED_VENV" = true ]; then
+    if [ "$PY_VER" != "3.12" ]; then
+        echo "✗ 当前 Python 版本为 $PY_VER，需要 3.12 才能创建虚拟环境"
+        echo "  请先安装 Python 3.12：https://www.python.org/downloads/"
+        exit 1
+    fi
+    echo "→ 创建虚拟环境 .venv（Python 3.12）..."
+    "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
 # ── 3. 安装依赖 ───────────────────────────────────────────────────────────────
 echo "→ 安装 Python 依赖（首次较慢，请稍候）..."
-"$REPO_DIR/.venv/bin/pip" install -q --upgrade pip
-"$REPO_DIR/.venv/bin/pip" install -q -r "$REPO_DIR/requirement.txt"
+"$VENV_DIR/bin/pip" install -q --upgrade pip
+"$VENV_DIR/bin/pip" install -q -r "$REPO_DIR/requirement.txt"
 echo "→ 依赖安装完成"
 
 # ── 4. 确保 start.sh 可执行 ───────────────────────────────────────────────────

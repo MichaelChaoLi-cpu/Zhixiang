@@ -1461,7 +1461,7 @@ async function stopSampleRecording() {
 
 /* ── API key management ──────────────────────────────────────────────── */
 async function loadApikeyStatus() {
-  const res  = await fetch("/api/settings/apikey");
+  const res  = await fetch("/api/settings/apikey", { cache: "no-store" });
   const data = await res.json();
   document.getElementById("apikey-configured").classList.toggle("hidden", !data.configured);
   document.getElementById("apikey-form").classList.toggle("hidden",       data.configured);

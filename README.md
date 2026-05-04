@@ -1,7 +1,7 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue)
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Version](https://img.shields.io/badge/version-0.0.2-blue)
+![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 ![Stars](https://img.shields.io/github/stars/MichaelChaoLi-cpu/Zhixiang?style=social)
@@ -14,7 +14,7 @@
 
 ## 快速开始
 
-**前提：macOS，已安装 Python 3.9+**
+**前提：macOS，推荐 Python 3.12**
 
 ```bash
 git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
@@ -112,7 +112,7 @@ Zhixiang/
 
 ## 版本历史
 
-### v0.0.1 (2026-05)
+### v0.0.2 (2026-05)
 - 初始版本
 - 语音 / 文字添加任务，自然语言解析日期时间
 - 时间轴拖拽排期，并行任务自动并列
