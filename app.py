@@ -373,12 +373,27 @@ def update_item(item_id):
 @app.route("/api/items/<int:item_id>/complete", methods=["POST"])
 def complete_item(item_id):
     conn = get_db()
-    conn.execute("UPDATE work_items SET status='completed' WHERE id=?", (item_id,))
+    item = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+
+    new_duration = item["duration_min"] or 60
+    if item["start_time"] and item["status"] == "pending":
+        now = datetime.now()
+        now_mins = now.hour * 60 + now.minute
+        start_mins = time_to_minutes(item["start_time"])
+        elapsed = now_mins - start_mins
+        if 1 <= elapsed < new_duration:
+            new_duration = elapsed
+
+    conn.execute(
+        "UPDATE work_items SET status='completed', duration_min=? WHERE id=?",
+        (new_duration, item_id)
+    )
     conn.commit()
     updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
     conn.close()
-    if not updated:
-        return jsonify({"error": "item not found"}), 404
     return jsonify(dict(updated))
 
 

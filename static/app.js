@@ -1457,12 +1457,34 @@ async function init() {
   await loadItems();
   await loadPool();
 
-  // Redraw the now-line every minute
+  // Redraw now-line and check for overdue tasks every minute
   setInterval(() => {
     if (state.selectedDate === formatDate(new Date())) {
       renderTimeline(state.items);
+      autoExtendOverdue();
     }
   }, 60 * 1000);
+}
+
+async function autoExtendOverdue() {
+  const now     = new Date();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const overdue = state.items.filter(it => {
+    if (it.status !== "pending" || !it.start_time) return false;
+    const start = timeToMinutes(it.start_time);
+    return start != null && nowMins >= start + (it.duration_min || 60);
+  });
+  if (!overdue.length) return;
+
+  await Promise.all(overdue.map(it =>
+    fetch(`/api/items/${it.id}/extend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ extra_min: 15 }),
+    })
+  ));
+  await loadItems();
+  showToast(`${overdue.length} 个任务已自动延长 15 分钟`);
 }
 
 document.addEventListener("DOMContentLoaded", init);
