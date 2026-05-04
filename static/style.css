@@ -1067,7 +1067,7 @@ body {
   letter-spacing: .06em;
 }
 
-#apikey-configured {
+.key-configured {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1089,11 +1089,11 @@ body {
 }
 .settings-danger-btn:hover { background: rgba(255,92,114,.12); }
 
-#apikey-form {
+.key-form {
   display: flex;
   gap: 6px;
 }
-#apikey-input {
+.key-input {
   flex: 1;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -1104,8 +1104,8 @@ body {
   outline: none;
   transition: border-color .15s;
 }
-#apikey-input:focus { border-color: var(--accent); }
-#apikey-save-btn {
+.key-input:focus { border-color: var(--accent); }
+.key-save-btn {
   background: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent);
@@ -1116,7 +1116,30 @@ body {
   white-space: nowrap;
   transition: background .15s;
 }
-#apikey-save-btn:hover { background: var(--accent); color: #fff; }
+.key-save-btn:hover { background: var(--accent); color: #fff; }
+
+#llm-provider-row {
+  display: flex;
+  gap: 8px;
+}
+.llm-provider-btn {
+  flex: 1;
+  padding: 6px 0;
+  font-size: .83rem;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.llm-provider-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.llm-provider-btn:hover:not(.active) { background: var(--surface); color: var(--text); }
 
 .settings-msg {
   font-size: .78rem;

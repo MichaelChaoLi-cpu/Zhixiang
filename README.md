@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.2-blue)
+![Version](https://img.shields.io/badge/version-0.0.3-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
@@ -112,7 +112,11 @@ Zhixiang/
 
 ## 版本历史
 
-### v0.0.2 (2026-05)
+### v0.0.3 (2026-05)
+- 支持多 LLM：Gemini 2.5 Flash / DeepSeek-V3 可在设置中切换
+- init.sh 自动安装 Python 3.12（通过 Homebrew）
+
+### v0.0.1 (2026-05)
 - 初始版本
 - 语音 / 文字添加任务，自然语言解析日期时间
 - 时间轴拖拽排期，并行任务自动并列

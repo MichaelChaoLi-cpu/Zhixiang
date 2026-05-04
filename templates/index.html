@@ -27,18 +27,37 @@
         <button id="settings-close">✕</button>
       </div>
 
-      <!-- API Key section -->
+      <!-- AI Model section -->
       <div class="settings-section">
-        <div class="settings-section-title">Gemini API Key</div>
-        <div id="apikey-configured" class="hidden">
-          <span class="apikey-status">✓ 已配置</span>
-          <button id="apikey-delete-btn" class="settings-danger-btn">删除 Key</button>
+        <div class="settings-section-title">AI 模型</div>
+        <div id="llm-provider-row">
+          <button id="llm-btn-gemini" class="llm-provider-btn">Gemini</button>
+          <button id="llm-btn-deepseek" class="llm-provider-btn">DeepSeek</button>
         </div>
-        <div id="apikey-form">
-          <input id="apikey-input" type="password" placeholder="输入 Gemini API Key" autocomplete="off" />
-          <button id="apikey-save-btn">保存</button>
+        <!-- Gemini key -->
+        <div id="gemini-key-section">
+          <div id="gemini-configured" class="hidden key-configured">
+            <span class="apikey-status">✓ 已配置</span>
+            <button id="gemini-delete-btn" class="settings-danger-btn">删除 Key</button>
+          </div>
+          <div id="gemini-form" class="key-form">
+            <input id="gemini-input" class="key-input" type="password" placeholder="输入 Gemini API Key" autocomplete="off" />
+            <button id="gemini-save-btn" class="key-save-btn">保存</button>
+          </div>
+          <div id="gemini-msg" class="settings-msg"></div>
         </div>
-        <div id="apikey-msg" class="settings-msg"></div>
+        <!-- DeepSeek key -->
+        <div id="deepseek-key-section" class="hidden">
+          <div id="deepseek-configured" class="hidden key-configured">
+            <span class="apikey-status">✓ 已配置</span>
+            <button id="deepseek-delete-btn" class="settings-danger-btn">删除 Key</button>
+          </div>
+          <div id="deepseek-form" class="key-form">
+            <input id="deepseek-input" class="key-input" type="password" placeholder="输入 DeepSeek API Key" autocomplete="off" />
+            <button id="deepseek-save-btn" class="key-save-btn">保存</button>
+          </div>
+          <div id="deepseek-msg" class="settings-msg"></div>
+        </div>
       </div>
 
       <!-- Wake word section -->

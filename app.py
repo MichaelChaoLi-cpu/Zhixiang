@@ -17,7 +17,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-__version__      = "0.0.2"
+__version__      = "0.0.3"
 
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
@@ -179,11 +179,30 @@ def init_db():
     conn.close()
 
 
-def configure_gemini():
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY environment variable is not set")
-    return genai.Client(api_key=api_key)
+def call_llm(prompt: str) -> str:
+    """Call the active LLM provider and return the response text."""
+    provider = _env_read_key("LLM_PROVIDER") or "gemini"
+    if provider == "deepseek":
+        api_key = _env_read_key("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY 未配置，请在设置中填入 DeepSeek API Key")
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    else:
+        api_key = _env_read_key("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY 未配置，请在设置中填入 Gemini API Key")
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return response.text
 
 
 def write_log(date: str, transcript: str, items: list):
@@ -542,11 +561,6 @@ def schedule_generate():
     if not date:
         return jsonify({"error": "date required"}), 400
 
-    try:
-        client = configure_gemini()
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 500
-
     conn = get_db()
     items = conn.execute(
         "SELECT id, content, duration_min, start_time FROM work_items WHERE date=? ORDER BY position ASC, id ASC",
@@ -596,17 +610,14 @@ def schedule_generate():
 不要添加任何解释，直接返回 JSON 数组。"""
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        schedule = extract_json(response.text)
+        text = call_llm(prompt)
+        schedule = extract_json(text)
         if not isinstance(schedule, list):
             raise ValueError("Expected a JSON array")
         return jsonify({"schedule": schedule})
     except Exception as e:
         import traceback; traceback.print_exc()
-        return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+        return jsonify({"error": f"AI 处理失败：{str(e)}"}), 500
 
 
 @app.route("/api/schedule/apply", methods=["POST"])
@@ -742,11 +753,6 @@ def voice_process():
     if not transcript:
         return jsonify({"error": "transcript required"}), 400
 
-    try:
-        client = configure_gemini()
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 500
-
     now        = datetime.now()
     today_str  = now.strftime("%Y-%m-%d")
     now_str    = now.strftime("%H:%M")
@@ -768,11 +774,7 @@ def voice_process():
     )
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        item = extract_json(response.text)
+        item = extract_json(call_llm(prompt))
         if isinstance(item, list):
             item = item[0] if item else {}
         if not isinstance(item, dict):
@@ -794,7 +796,7 @@ def voice_process():
         return jsonify({"items": normalized, "transcript": transcript})
     except Exception as e:
         import traceback; traceback.print_exc()
-        return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+        return jsonify({"error": f"AI 处理失败：{str(e)}"}), 500
 
 
 @app.route("/api/voice/reorder", methods=["POST"])
@@ -805,11 +807,6 @@ def voice_reorder():
     current_items = data.get("items", [])
     if not command or not current_items:
         return jsonify({"error": "command and items required"}), 400
-
-    try:
-        client = configure_gemini()
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 500
 
     items_text = "\n".join(
         f"{i+1}. [id={item['id']}] {item['content']}"
@@ -823,17 +820,13 @@ def voice_reorder():
     )
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        reordered = extract_json(response.text)
+        reordered = extract_json(call_llm(prompt))
         if not isinstance(reordered, list):
             raise ValueError("Expected a JSON array")
         return jsonify({"items": reordered})
     except Exception as e:
         import traceback; traceback.print_exc()
-        return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+        return jsonify({"error": f"AI 处理失败：{str(e)}"}), 500
 
 
 @app.route("/api/export/csv", methods=["GET"])
@@ -1009,9 +1002,26 @@ def _env_read_key(key: str) -> str:
     return ""
 
 
+@app.route("/api/settings/llm", methods=["GET"])
+def llm_get():
+    provider = _env_read_key("LLM_PROVIDER") or "gemini"
+    resp = jsonify({"provider": provider})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/settings/llm", methods=["POST"])
+def llm_set():
+    data = request.get_json()
+    provider = (data.get("provider") or "").strip()
+    if provider not in ("gemini", "deepseek"):
+        return jsonify({"error": "provider must be 'gemini' or 'deepseek'"}), 400
+    _env_set_key("LLM_PROVIDER", provider)
+    return jsonify({"provider": provider})
+
+
 @app.route("/api/settings/apikey", methods=["GET"])
 def apikey_status():
-    """Return whether GEMINI_API_KEY is in .env — never return the key itself."""
     has_key = bool(_env_read_key("GEMINI_API_KEY"))
     resp = jsonify({"configured": has_key})
     resp.headers["Cache-Control"] = "no-store"
@@ -1033,6 +1043,32 @@ def apikey_set():
 @app.route("/api/settings/apikey", methods=["DELETE"])
 def apikey_delete():
     _env_delete_key("GEMINI_API_KEY")
+    return jsonify({"configured": False})
+
+
+@app.route("/api/settings/deepseek_apikey", methods=["GET"])
+def deepseek_apikey_status():
+    has_key = bool(_env_read_key("DEEPSEEK_API_KEY"))
+    resp = jsonify({"configured": has_key})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.route("/api/settings/deepseek_apikey", methods=["POST"])
+def deepseek_apikey_set():
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "key is required"}), 400
+    if len(key) < 10:
+        return jsonify({"error": "API key 太短，请确认复制完整"}), 400
+    _env_set_key("DEEPSEEK_API_KEY", key)
+    return jsonify({"configured": True})
+
+
+@app.route("/api/settings/deepseek_apikey", methods=["DELETE"])
+def deepseek_apikey_delete():
+    _env_delete_key("DEEPSEEK_API_KEY")
     return jsonify({"configured": False})
 
 
