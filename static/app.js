@@ -1567,6 +1567,11 @@ async function init() {
     setMicState("idle");
   }
 
+  fetch("/api/version").then(r => r.json()).then(d => {
+    const el = document.getElementById("topbar-version");
+    if (el) el.textContent = `v${d.version}`;
+  });
+
   await loadDatesWithItems();
   await loadItems();
   await loadPool();

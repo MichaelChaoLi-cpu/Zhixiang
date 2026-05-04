@@ -17,6 +17,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
+__version__      = "0.0.1"
+
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
 WAKE_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "data", "wake_samples")
@@ -947,6 +949,11 @@ def export_ics():
         mimetype="text/calendar; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+@app.route("/api/version", methods=["GET"])
+def get_version():
+    return jsonify({"version": __version__})
 
 
 @app.route("/api/logs/<date>", methods=["GET"])
