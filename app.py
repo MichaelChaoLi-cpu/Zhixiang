@@ -1,4 +1,6 @@
 import os
+import io
+import csv
 import json
 import sqlite3
 import re
@@ -7,7 +9,7 @@ import glob
 from datetime import datetime
 import numpy as np
 from scipy.fft import dct
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from dotenv import load_dotenv
 from google import genai
 
@@ -15,9 +17,12 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
+__version__      = "0.0.1"
+
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
 WAKE_SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "data", "wake_samples")
+ENV_PATH         = os.path.join(os.path.dirname(__file__), ".env")
 
 
 # ── MFCC / DTW wake word matching ────────────────────────────────────────────
@@ -127,8 +132,14 @@ def get_db():
     return conn
 
 
+def _column_exists(conn, table: str, column: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return any(r["name"] == column for r in rows)
+
+
 def init_db():
     conn = get_db()
+    # Main work_items table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS work_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,6 +149,32 @@ def init_db():
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
+
+    # Migrate: add new columns if they don't exist
+    migrations = [
+        ("duration_min",    "INTEGER DEFAULT 60"),
+        ("start_time",      "TEXT"),
+        ("status",          "TEXT DEFAULT 'pending'"),
+        ("parallel_group",  "INTEGER"),
+        ("parallel_reason", "TEXT"),
+        ("description",     "TEXT DEFAULT ''"),
+    ]
+    for col, col_def in migrations:
+        if not _column_exists(conn, "work_items", col):
+            conn.execute(f"ALTER TABLE work_items ADD COLUMN {col} {col_def}")
+
+    # Task pool table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS task_pool (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content TEXT NOT NULL,
+            duration_min INTEGER NOT NULL DEFAULT 60,
+            notes TEXT,
+            suspended_from TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -157,7 +194,8 @@ def write_log(date: str, transcript: str, items: list):
     if items:
         lines.append("\n**提取事项：**\n")
         for i, item in enumerate(items, 1):
-            lines.append(f"{i}. {item}\n")
+            content = item["content"] if isinstance(item, dict) else item
+            lines.append(f"{i}. {content}\n")
     with open(log_path, "a", encoding="utf-8") as f:
         if os.path.getsize(log_path) == 0:
             f.write(f"# {date} 工作日志\n")
@@ -190,6 +228,19 @@ def extract_json(text: str):
     return json.loads(text)
 
 
+def time_to_minutes(t: str) -> int:
+    """Convert 'HH:MM' to minutes since midnight."""
+    h, m = t.split(":")
+    return int(h) * 60 + int(m)
+
+
+def minutes_to_time(mins: int) -> str:
+    """Convert minutes since midnight to 'HH:MM'."""
+    h = (mins // 60) % 24
+    m = mins % 60
+    return f"{h:02d}:{m:02d}"
+
+
 # ── REST API ──────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -204,7 +255,9 @@ def get_items():
         return jsonify({"error": "date parameter required"}), 400
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, date, content, position, created_at FROM work_items WHERE date=? ORDER BY position ASC, id ASC",
+        """SELECT id, date, content, description, position, created_at,
+                  duration_min, start_time, status, parallel_group, parallel_reason
+           FROM work_items WHERE date=? ORDER BY start_time ASC NULLS LAST, position ASC, id ASC""",
         (date,)
     ).fetchall()
     conn.close()
@@ -234,15 +287,32 @@ def add_items():
     next_pos = row["max_pos"] + 1
 
     inserted = []
-    for content in items:
-        content = content.strip()
+    for item in items:
+        if isinstance(item, dict):
+            content      = item.get("content", "").strip()
+            description  = item.get("description", "").strip()
+            duration_min = int(item.get("duration_min", 60) or 60)
+            start_time   = item.get("start_time") or None
+            if start_time and not re.match(r"^\d{2}:\d{2}$", start_time):
+                start_time = None
+        else:
+            content = str(item).strip()
+            description = ""
+            duration_min = 60
+            start_time = None
         if not content:
             continue
         cur = conn.execute(
-            "INSERT INTO work_items (date, content, position) VALUES (?, ?, ?)",
-            (date, content, next_pos)
+            """INSERT INTO work_items (date, content, description, position, duration_min, start_time)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (date, content, description, next_pos, duration_min, start_time)
         )
-        inserted.append({"id": cur.lastrowid, "date": date, "content": content, "position": next_pos})
+        inserted.append({
+            "id": cur.lastrowid, "date": date, "content": content,
+            "description": description, "position": next_pos,
+            "duration_min": duration_min, "start_time": start_time,
+            "status": "pending", "parallel_group": None, "parallel_reason": None
+        })
         next_pos += 1
     conn.commit()
     conn.close()
@@ -273,6 +343,311 @@ def reorder_items():
 def delete_item(item_id):
     conn = get_db()
     conn.execute("DELETE FROM work_items WHERE id=?", (item_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/items/<int:item_id>", methods=["PUT"])
+def update_item(item_id):
+    data = request.get_json()
+    conn = get_db()
+    item = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+
+    fields = {}
+    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason"):
+        if key in data:
+            fields[key] = data[key]
+
+    if fields:
+        set_clause = ", ".join(f"{k}=?" for k in fields)
+        conn.execute(
+            f"UPDATE work_items SET {set_clause} WHERE id=?",
+            list(fields.values()) + [item_id]
+        )
+        conn.commit()
+
+    updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(updated))
+
+
+@app.route("/api/items/<int:item_id>/complete", methods=["POST"])
+def complete_item(item_id):
+    conn = get_db()
+    item = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+
+    new_duration = item["duration_min"] or 60
+    if item["start_time"] and item["status"] == "pending":
+        now = datetime.now()
+        now_mins = now.hour * 60 + now.minute
+        start_mins = time_to_minutes(item["start_time"])
+        elapsed = now_mins - start_mins
+        if 1 <= elapsed < new_duration:
+            new_duration = elapsed
+
+    conn.execute(
+        "UPDATE work_items SET status='completed', duration_min=? WHERE id=?",
+        (new_duration, item_id)
+    )
+    conn.commit()
+    updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(updated))
+
+
+@app.route("/api/items/<int:item_id>/suspend", methods=["POST"])
+def suspend_item(item_id):
+    conn = get_db()
+    item = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+
+    item = dict(item)
+    # Move to task pool
+    conn.execute(
+        "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
+        (item["content"], item["duration_min"] or 60, item["date"])
+    )
+
+    # Push subsequent items back if this item has a start_time
+    if item.get("start_time"):
+        duration = item["duration_min"] or 60
+        # All items on same date with start_time > this item's start_time
+        later = conn.execute(
+            """SELECT id, start_time FROM work_items
+               WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL""",
+            (item["date"], item["start_time"], item_id)
+        ).fetchall()
+        for row in later:
+            mins = time_to_minutes(row["start_time"]) - duration
+            conn.execute(
+                "UPDATE work_items SET start_time=? WHERE id=?",
+                (minutes_to_time(mins), row["id"])
+            )
+
+    conn.execute("DELETE FROM work_items WHERE id=?", (item_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "moved_to_pool": True})
+
+
+@app.route("/api/items/<int:item_id>/extend", methods=["POST"])
+def extend_item(item_id):
+    data = request.get_json()
+    extra_min = int(data.get("extra_min", 30))
+    conn = get_db()
+    item = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+
+    item = dict(item)
+    new_duration = (item["duration_min"] or 60) + extra_min
+    conn.execute("UPDATE work_items SET duration_min=? WHERE id=?", (new_duration, item_id))
+
+    # Only push tasks that now overlap due to the extension.
+    # A task overlaps only if its start_time falls within [old_end, new_end).
+    if item.get("start_time"):
+        old_end_mins = time_to_minutes(item["start_time"]) + (item["duration_min"] or 60)
+        new_end_mins = old_end_mins + extra_min
+        later = conn.execute(
+            """SELECT id, start_time FROM work_items
+               WHERE date=? AND start_time >= ? AND start_time < ? AND id != ?
+                 AND start_time IS NOT NULL""",
+            (item["date"], minutes_to_time(old_end_mins), minutes_to_time(new_end_mins), item_id)
+        ).fetchall()
+        for row in later:
+            conn.execute(
+                "UPDATE work_items SET start_time=? WHERE id=?",
+                (minutes_to_time(new_end_mins), row["id"])
+            )
+
+    conn.commit()
+    updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(updated))
+
+
+# ── Task pool endpoints ───────────────────────────────────────────────────────
+
+@app.route("/api/pool", methods=["GET"])
+def get_pool():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM task_pool ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/pool/<int:pool_id>", methods=["DELETE"])
+def delete_pool_item(pool_id):
+    conn = get_db()
+    conn.execute("DELETE FROM task_pool WHERE id=?", (pool_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/pool/<int:pool_id>/schedule", methods=["POST"])
+def schedule_pool_item(pool_id):
+    data = request.get_json()
+    date = data.get("date")
+    start_time = data.get("start_time")
+    if not date:
+        return jsonify({"error": "date required"}), 400
+
+    conn = get_db()
+    pool_item = conn.execute("SELECT * FROM task_pool WHERE id=?", (pool_id,)).fetchone()
+    if not pool_item:
+        conn.close()
+        return jsonify({"error": "pool item not found"}), 404
+
+    pool_item = dict(pool_item)
+    row = conn.execute(
+        "SELECT COALESCE(MAX(position), -1) as max_pos FROM work_items WHERE date=?", (date,)
+    ).fetchone()
+    next_pos = row["max_pos"] + 1
+
+    cur = conn.execute(
+        """INSERT INTO work_items (date, content, position, duration_min, start_time, status)
+           VALUES (?, ?, ?, ?, ?, 'pending')""",
+        (date, pool_item["content"], next_pos, pool_item["duration_min"], start_time)
+    )
+    new_id = cur.lastrowid
+    conn.execute("DELETE FROM task_pool WHERE id=?", (pool_id,))
+    conn.commit()
+
+    inserted = conn.execute("SELECT * FROM work_items WHERE id=?", (new_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(inserted)), 201
+
+
+# ── Schedule generation / apply ───────────────────────────────────────────────
+
+@app.route("/api/schedule/generate", methods=["POST"])
+def schedule_generate():
+    data = request.get_json()
+    date = data.get("date")
+    work_start = data.get("work_start", "09:00")
+    work_end = data.get("work_end", "18:00")
+    if not date:
+        return jsonify({"error": "date required"}), 400
+
+    try:
+        client = configure_gemini()
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 500
+
+    conn = get_db()
+    items = conn.execute(
+        "SELECT id, content, duration_min, start_time FROM work_items WHERE date=? ORDER BY position ASC, id ASC",
+        (date,)
+    ).fetchall()
+    pool_items = conn.execute("SELECT id, content, duration_min FROM task_pool ORDER BY created_at").fetchall()
+    conn.close()
+
+    task_list = []
+    for row in items:
+        r = dict(row)
+        task_list.append({
+            "id": r["id"],
+            "content": r["content"],
+            "duration_min": r["duration_min"] or 60,
+            "current_start": r["start_time"]
+        })
+    # Don't include pool items automatically — they remain in pool unless scheduled
+
+    if not task_list:
+        return jsonify({"error": "当天没有工作事项"}), 400
+
+    tasks_json = json.dumps(task_list, ensure_ascii=False, indent=2)
+
+    prompt = f"""你是一个专业日程规划师。给定以下工作任务列表，为 {date} 创建从 {work_start} 到 {work_end} 的日程安排。
+
+规则：
+1. 在 12:00 安排 1 小时午休（content="午休", id=null, duration_min=60）
+2. 识别哪些任务必须顺序执行，哪些可以并行（用 parallel_group 整数标记同组并行任务，sequential 任务 parallel_group=null）
+3. 并行任务必须有明确理由（parallel_reason）
+4. 尽量在工作时间内安排所有任务
+5. start_time 格式为 "HH:MM"
+
+输入任务：
+{tasks_json}
+
+只返回 JSON 数组，每个元素：
+{{
+  "id": <原始id或null>,
+  "content": "<任务内容>",
+  "start_time": "HH:MM",
+  "duration_min": <分钟数>,
+  "parallel_group": <整数或null>,
+  "parallel_reason": "<并行原因或null>"
+}}
+
+不要添加任何解释，直接返回 JSON 数组。"""
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        schedule = extract_json(response.text)
+        if not isinstance(schedule, list):
+            raise ValueError("Expected a JSON array")
+        return jsonify({"schedule": schedule})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
+
+
+@app.route("/api/schedule/apply", methods=["POST"])
+def schedule_apply():
+    data = request.get_json()
+    date = data.get("date")
+    schedule = data.get("schedule", [])
+    if not date or not schedule:
+        return jsonify({"error": "date and schedule required"}), 400
+
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COALESCE(MAX(position), -1) as max_pos FROM work_items WHERE date=?", (date,)
+    ).fetchone()
+    next_pos = row["max_pos"] + 1
+
+    for entry in schedule:
+        item_id = entry.get("id")
+        start_time = entry.get("start_time")
+        duration_min = entry.get("duration_min", 60)
+        parallel_group = entry.get("parallel_group")
+        parallel_reason = entry.get("parallel_reason")
+        content = entry.get("content", "")
+
+        if item_id:
+            # Update existing item
+            conn.execute(
+                """UPDATE work_items
+                   SET start_time=?, duration_min=?, parallel_group=?, parallel_reason=?
+                   WHERE id=?""",
+                (start_time, duration_min, parallel_group, parallel_reason, item_id)
+            )
+        else:
+            # Insert new item (e.g., lunch break)
+            conn.execute(
+                """INSERT INTO work_items (date, content, position, duration_min, start_time, parallel_group, parallel_reason)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (date, content, next_pos, duration_min, start_time, parallel_group, parallel_reason)
+            )
+            next_pos += 1
+
     conn.commit()
     conn.close()
     return jsonify({"status": "ok"})
@@ -360,10 +735,10 @@ def voice_wake():
 
 @app.route("/api/voice/process", methods=["POST"])
 def voice_process():
-    """Extract work items from text transcript using Gemini."""
+    """Extract work items (with duration) from text transcript using Gemini."""
     data = request.get_json()
-    transcript = data.get("transcript", "").strip()
-    date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
+    transcript  = data.get("transcript", "").strip()
+    client_date = data.get("date", datetime.now().strftime("%Y-%m-%d"))
     if not transcript:
         return jsonify({"error": "transcript required"}), 400
 
@@ -372,10 +747,23 @@ def voice_process():
     except ValueError as e:
         return jsonify({"error": str(e)}), 500
 
+    now        = datetime.now()
+    today_str  = now.strftime("%Y-%m-%d")
+    now_str    = now.strftime("%H:%M")
+    weekday_cn = ["一","二","三","四","五","六","日"][now.weekday()]
+
     prompt = (
-        "你是一个工作计划助手。用户用中文或日文说出今天的工作事项。\n"
-        "请从以下转录文本中提取工作事项列表，每条简洁中文描述，忽略「完毕」「结束」等控制词。\n"
-        "只返回 JSON 数组，不添加任何解释：[\"事项1\", \"事项2\"]\n\n"
+        f"今天是 {today_str}，星期{weekday_cn}，当前时刻是 {now_str}。\n"
+        "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期或时间信息。\n"
+        "请解析为以下 JSON 对象，字段说明：\n"
+        "- content：简洁的任务名（5-15字）\n"
+        "- description：任务的详细说明（如有则填写，否则为空字符串）\n"
+        "- duration_min：任务时长（分钟整数），如未提及则默认 60\n"
+        f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」「立刻」解析为 {now_str}；如未提及则为 null\n"
+        "- date：任务日期，格式 \"YYYY-MM-DD\"，「明天」「后天」「下周X」「X月X日」等需计算；如未提及日期则为 null\n\n"
+        "忽略「完毕」「结束」等控制词。只返回 JSON，不添加任何解释：\n"
+        "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, "
+        "\"start_time\": null, \"date\": null}\n\n"
         f"转录文本：{transcript}"
     )
 
@@ -384,12 +772,26 @@ def voice_process():
             model="gemini-2.5-flash",
             contents=prompt
         )
-        items = extract_json(response.text)
-        if not isinstance(items, list):
-            raise ValueError("Expected a JSON array")
-        items = [str(i) for i in items if str(i).strip()]
-        write_log(date, transcript, items)
-        return jsonify({"items": items})
+        item = extract_json(response.text)
+        if isinstance(item, list):
+            item = item[0] if item else {}
+        if not isinstance(item, dict):
+            raise ValueError("Expected a JSON object")
+        content      = str(item.get("content", "")).strip()
+        description  = str(item.get("description", "")).strip()
+        duration_min = int(item.get("duration_min", 60) or 60)
+        raw_time     = item.get("start_time")
+        start_time   = raw_time if (raw_time and re.match(r"^\d{2}:\d{2}$", str(raw_time))) else None
+        raw_date     = item.get("date")
+        task_date    = raw_date if (raw_date and re.match(r"^\d{4}-\d{2}-\d{2}$", str(raw_date))) \
+                       else client_date
+        if not content:
+            raise ValueError("Empty task content")
+        normalized = [{"content": content, "description": description,
+                       "duration_min": duration_min, "start_time": start_time,
+                       "date": task_date}]
+        write_log(task_date, transcript, normalized)
+        return jsonify({"items": normalized, "transcript": transcript})
     except Exception as e:
         import traceback; traceback.print_exc()
         return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
@@ -434,6 +836,126 @@ def voice_reorder():
         return jsonify({"error": f"Gemini 处理失败：{str(e)}"}), 500
 
 
+@app.route("/api/export/csv", methods=["GET"])
+def export_csv():
+    date_from = request.args.get("from", "")
+    date_to   = request.args.get("to",   "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from or ""):
+        return jsonify({"error": "invalid 'from' date"}), 400
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to or ""):
+        return jsonify({"error": "invalid 'to' date"}), 400
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT date, start_time, duration_min, content, description,
+                  status, parallel_group, parallel_reason, created_at
+           FROM work_items
+           WHERE date >= ? AND date <= ?
+           ORDER BY date ASC, start_time ASC NULLS LAST, position ASC""",
+        (date_from, date_to)
+    ).fetchall()
+    conn.close()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["日期", "开始时间", "时长(分钟)", "任务名", "说明",
+                     "状态", "并行组", "并行说明", "创建时间"])
+    for r in rows:
+        writer.writerow([
+            r["date"], r["start_time"] or "", r["duration_min"] or 60,
+            r["content"], r["description"] or "",
+            r["status"] or "pending", r["parallel_group"] or "",
+            r["parallel_reason"] or "", r["created_at"]
+        ])
+
+    filename = f"schedule_{date_from}_{date_to}.csv"
+    return Response(
+        "﻿" + buf.getvalue(),   # UTF-8 BOM for Excel
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.route("/api/export/ics", methods=["GET"])
+def export_ics():
+    date_from = request.args.get("from", "")
+    date_to   = request.args.get("to",   "")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_from or ""):
+        return jsonify({"error": "invalid 'from' date"}), 400
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date_to or ""):
+        return jsonify({"error": "invalid 'to' date"}), 400
+
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT id, date, start_time, duration_min, content, description, status, created_at
+           FROM work_items
+           WHERE date >= ? AND date <= ? AND status != 'suspended'
+           ORDER BY date ASC, start_time ASC NULLS LAST, position ASC""",
+        (date_from, date_to)
+    ).fetchall()
+    conn.close()
+
+    from datetime import timezone
+    now_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Zhixiang//Schedule//ZH",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:志翔日程",
+        "X-WR-TIMEZONE:Asia/Tokyo",
+    ]
+
+    for r in rows:
+        date_compact = r["date"].replace("-", "")
+        uid = f"zhixiang-{r['id']}@schedule"
+
+        if r["start_time"]:
+            hh, mm = r["start_time"].split(":")
+            dur = int(r["duration_min"] or 60)
+            end_total = int(hh) * 60 + int(mm) + dur
+            end_hh, end_mm = divmod(end_total, 60)
+            dtstart = f"DTSTART;TZID=Asia/Tokyo:{date_compact}T{hh}{mm}00"
+            dtend   = f"DTEND;TZID=Asia/Tokyo:{date_compact}T{end_hh:02d}{end_mm:02d}00"
+        else:
+            # All-day event
+            dtstart = f"DTSTART;VALUE=DATE:{date_compact}"
+            dtend   = f"DTEND;VALUE=DATE:{date_compact}"
+
+        summary = r["content"].replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+        desc = (r["description"] or "").replace("\\", "\\\\").replace("\n", "\\n").replace(",", "\\,").replace(";", "\\;")
+        status_map = {"completed": "CONFIRMED", "pending": "TENTATIVE"}
+        vstatus = status_map.get(r["status"] or "pending", "TENTATIVE")
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now_stamp}",
+            dtstart,
+            dtend,
+            f"SUMMARY:{summary}",
+            *([ f"DESCRIPTION:{desc}" ] if desc else []),
+            f"STATUS:{vstatus}",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    content = "\r\n".join(lines) + "\r\n"
+
+    filename = f"schedule_{date_from}_{date_to}.ics"
+    return Response(
+        content,
+        mimetype="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.route("/api/version", methods=["GET"])
+def get_version():
+    return jsonify({"version": __version__})
+
+
 @app.route("/api/logs/<date>", methods=["GET"])
 def get_log(date):
     log_path = os.path.join(LOGS_DIR, f"{date}.md")
@@ -443,7 +965,71 @@ def get_log(date):
         return jsonify({"content": f.read()})
 
 
+# ── API key management ────────────────────────────────────────────────────────
+
+def _env_set_key(key: str, value: str):
+    """Write or update a key=value line in .env without touching other lines."""
+    lines = []
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, encoding="utf-8") as f:
+            lines = f.readlines()
+    updated = False
+    for i, line in enumerate(lines):
+        if re.match(rf"^\s*{re.escape(key)}\s*=", line):
+            lines[i] = f"{key}={value}\n"
+            updated = True
+            break
+    if not updated:
+        lines.append(f"{key}={value}\n")
+    with open(ENV_PATH, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    os.environ[key] = value
+
+
+def _env_delete_key(key: str):
+    """Remove a key line from .env and unset from os.environ."""
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, encoding="utf-8") as f:
+            lines = f.readlines()
+        lines = [l for l in lines if not re.match(rf"^\s*{re.escape(key)}\s*=", l)]
+        with open(ENV_PATH, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+    os.environ.pop(key, None)
+
+
+@app.route("/api/settings/apikey", methods=["GET"])
+def apikey_status():
+    """Return whether GEMINI_API_KEY is configured — never return the key itself."""
+    has_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    return jsonify({"configured": has_key})
+
+
+@app.route("/api/settings/apikey", methods=["POST"])
+def apikey_set():
+    data = request.get_json()
+    key = (data.get("key") or "").strip()
+    if not key:
+        return jsonify({"error": "key is required"}), 400
+    if not key.startswith("AI") or len(key) < 20:
+        return jsonify({"error": "API key 格式不正确"}), 400
+    _env_set_key("GEMINI_API_KEY", key)
+    return jsonify({"configured": True})
+
+
+@app.route("/api/settings/apikey", methods=["DELETE"])
+def apikey_delete():
+    _env_delete_key("GEMINI_API_KEY")
+    return jsonify({"configured": False})
+
+
 if __name__ == "__main__":
+    import threading, webbrowser
     init_db()
     port = int(os.environ.get("PORT", 4096))
+    # Open browser after server starts (only on first launch, not reloader reload)
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        def _open():
+            import time; time.sleep(1.2)
+            webbrowser.open(f"http://localhost:{port}")
+        threading.Thread(target=_open, daemon=True).start()
     app.run(debug=True, port=port)

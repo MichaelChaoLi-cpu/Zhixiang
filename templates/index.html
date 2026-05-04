@@ -14,27 +14,66 @@
     <h1>📅 日程计划</h1>
     <div class="spacer"></div>
     <span style="font-size:.78rem;color:var(--text-dim);" id="topbar-date"></span>
+    <span id="topbar-version" style="font-size:.7rem;color:var(--text-dim);opacity:.5;"></span>
+    <button id="theme-btn" title="切换主题">🌙</button>
     <button id="settings-btn" title="唤醒词设置">⚙️</button>
   </header>
 
-  <!-- Wake word setup modal -->
+  <!-- Settings modal -->
   <div id="settings-overlay" class="hidden">
     <div id="settings-panel">
       <div id="settings-header">
-        <h3>唤醒词设置</h3>
+        <h3>设置</h3>
         <button id="settings-close">✕</button>
       </div>
-      <p class="settings-desc">录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。</p>
-      <div id="sample-progress-row">
-        <div id="sample-dots"></div>
-        <span id="sample-count-label">0 / 5</span>
+
+      <!-- API Key section -->
+      <div class="settings-section">
+        <div class="settings-section-title">Gemini API Key</div>
+        <div id="apikey-configured" class="hidden">
+          <span class="apikey-status">✓ 已配置</span>
+          <button id="apikey-delete-btn" class="settings-danger-btn">删除 Key</button>
+        </div>
+        <div id="apikey-form">
+          <input id="apikey-input" type="password" placeholder="输入 Gemini API Key" autocomplete="off" />
+          <button id="apikey-save-btn">保存</button>
+        </div>
+        <div id="apikey-msg" class="settings-msg"></div>
       </div>
-      <div id="sample-status"></div>
-      <div id="sample-controls">
-        <button id="sample-record-btn">按住录制样本</button>
-        <button id="sample-clear-btn">清除所有样本</button>
+
+      <!-- Wake word section -->
+      <div class="settings-section">
+        <div class="settings-section-title">唤醒词采样</div>
+        <p class="settings-desc">录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。</p>
+        <div id="sample-progress-row">
+          <div id="sample-dots"></div>
+          <span id="sample-count-label">0 / 5</span>
+        </div>
+        <div id="sample-status"></div>
+        <div id="sample-controls">
+          <button id="sample-record-btn">按住录制样本</button>
+          <button id="sample-clear-btn">清除所有样本</button>
+        </div>
+        <div id="sample-hint">建议：每次说完整的「志翔」，停顿约 1 秒后松开</div>
       </div>
-      <div id="sample-hint">建议：每次说完整的「志翔」，停顿约 1 秒后松开</div>
+    </div>
+  </div>
+
+  <!-- AI Plan preview modal -->
+  <div id="ai-plan-overlay" class="hidden">
+    <div id="ai-plan-panel">
+      <div id="ai-plan-header">
+        <h3>✨ AI 规划预览</h3>
+        <button id="ai-plan-close">✕</button>
+      </div>
+      <div id="ai-plan-body">
+        <div id="ai-plan-loading">正在生成规划…</div>
+        <div id="ai-plan-list" class="hidden"></div>
+      </div>
+      <div id="ai-plan-footer" class="hidden">
+        <button id="ai-plan-cancel">取消</button>
+        <button id="ai-plan-apply">应用规划</button>
+      </div>
     </div>
   </div>
 
@@ -50,38 +89,71 @@
       <span>三</span><span>四</span><span>五</span><span>六</span>
     </div>
     <div class="cal-grid" id="cal-grid"></div>
+
+    <!-- CSV export -->
+    <div id="export-section">
+      <div class="export-title">导出日程</div>
+      <div class="export-row">
+        <label>从</label>
+        <input type="date" id="export-from" />
+      </div>
+      <div class="export-row">
+        <label>至</label>
+        <input type="date" id="export-to" />
+      </div>
+      <div class="export-btns">
+        <button id="export-csv-btn">⬇ CSV</button>
+        <button id="export-ics-btn">📅 ICS</button>
+      </div>
+    </div>
   </aside>
 
-  <!-- Right: Items -->
+  <!-- Right: Timeline & controls -->
   <main id="right-panel">
     <div id="right-header">
       <h2 id="selected-date-label">—</h2>
       <div class="spacer"></div>
+      <button id="ai-plan-btn">✨ AI 规划</button>
       <div id="mode-toggle">
         <span>模式：</span>
         <button id="mode-btn">排序模式</button>
       </div>
     </div>
 
-    <div id="items-container">
-      <ul id="items-list"></ul>
+    <!-- Timeline -->
+    <div id="timeline-wrapper">
+      <div id="timeline-axis"></div>
+      <div id="timeline-tracks"></div>
     </div>
 
-    <!-- Voice input -->
-    <div id="voice-section">
-      <div id="mic-device-row">
-        <label for="mic-select">🎙 麦克风：</label>
-        <select id="mic-select"><option>检测中…</option></select>
-        <div id="mic-level-wrap"><div id="mic-level-bar"></div></div>
-        <button id="wake-btn">🎧 开启唤醒</button>
+    <!-- Task pool (collapsible) -->
+    <div id="pool-section">
+      <div id="pool-header">
+        <span>任务池</span>
+        <span id="pool-count">0</span>
+        <button id="pool-toggle">▼</button>
       </div>
-      <div id="wake-word-label"></div>
-      <div id="voice-status"></div>
-      <button id="mic-btn" title="按住说话">
-        <span class="mic-icon">🎙️</span>
-        <span class="spinner"></span>
-      </button>
-      <div id="transcript-preview"></div>
+      <div id="pool-list"></div>
+    </div>
+
+    <!-- Bottom input bar (manual + voice merged) -->
+    <div id="input-bar">
+      <div id="input-main-row">
+        <select id="mic-select" title="麦克风"><option>检测中…</option></select>
+        <input id="manual-input" type="text" placeholder="输入任务，如：下午2点开会一小时" autocomplete="off" />
+        <button id="mic-btn" title="按住说话">
+          <span class="mic-icon">🎙️</span>
+          <span class="spinner"></span>
+        </button>
+        <button id="manual-add-btn">添加</button>
+      </div>
+      <div id="input-status-row">
+        <button id="wake-btn">🎧 开启唤醒</button>
+        <div id="mic-level-wrap"><div id="mic-level-bar"></div></div>
+        <div id="wake-word-label"></div>
+        <div id="voice-status"></div>
+        <div id="transcript-preview"></div>
+      </div>
     </div>
   </main>
 
@@ -92,7 +164,6 @@
 
 <script src="/static/app.js"></script>
 <script>
-  // Show today's date in topbar
   document.getElementById("topbar-date").textContent =
     new Date().toLocaleDateString("zh-CN", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 </script>
