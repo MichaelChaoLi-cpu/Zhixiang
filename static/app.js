@@ -655,6 +655,29 @@ async function schedulePoolItem(poolId) {
   showToast("已从任务池移至日程");
 }
 
+/* ── Theme toggle ────────────────────────────────────────────────────── */
+function setupThemeToggle() {
+  const btn = document.getElementById("theme-btn");
+  const saved = localStorage.getItem("theme") || "dark";
+  applyTheme(saved);
+
+  btn.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    applyTheme(next);
+    localStorage.setItem("theme", next);
+  });
+}
+
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.dataset.theme = "light";
+    document.getElementById("theme-btn").textContent = "☀️";
+  } else {
+    delete document.documentElement.dataset.theme;
+    document.getElementById("theme-btn").textContent = "🌙";
+  }
+}
+
 function setupPoolToggle() {
   document.getElementById("pool-header").addEventListener("click", () => {
     state.poolExpanded = !state.poolExpanded;
@@ -1451,6 +1474,7 @@ async function init() {
   setupCalNav();
   setupModeToggle();
   setupMicButton();
+  setupThemeToggle();
   setupSettingsPanel();
   setupAIPlan();
   setupPoolToggle();

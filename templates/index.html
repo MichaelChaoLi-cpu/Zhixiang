@@ -14,6 +14,7 @@
     <h1>📅 日程计划</h1>
     <div class="spacer"></div>
     <span style="font-size:.78rem;color:var(--text-dim);" id="topbar-date"></span>
+    <button id="theme-btn" title="切换主题">🌙</button>
     <button id="settings-btn" title="唤醒词设置">⚙️</button>
   </header>
 
@@ -82,12 +83,6 @@
       </div>
     </div>
 
-    <!-- Manual task input -->
-    <div id="manual-input-row">
-      <input id="manual-input" type="text" placeholder="输入任务，如：下午2点开会一小时" autocomplete="off" />
-      <button id="manual-add-btn">添加</button>
-    </div>
-
     <!-- Timeline -->
     <div id="timeline-wrapper">
       <div id="timeline-axis"></div>
@@ -104,21 +99,24 @@
       <div id="pool-list"></div>
     </div>
 
-    <!-- Voice input -->
-    <div id="voice-section">
-      <div id="mic-device-row">
-        <label for="mic-select">🎙 麦克风：</label>
-        <select id="mic-select"><option>检测中…</option></select>
-        <div id="mic-level-wrap"><div id="mic-level-bar"></div></div>
-        <button id="wake-btn">🎧 开启唤醒</button>
+    <!-- Bottom input bar (manual + voice merged) -->
+    <div id="input-bar">
+      <div id="input-main-row">
+        <select id="mic-select" title="麦克风"><option>检测中…</option></select>
+        <input id="manual-input" type="text" placeholder="输入任务，如：下午2点开会一小时" autocomplete="off" />
+        <button id="mic-btn" title="按住说话">
+          <span class="mic-icon">🎙️</span>
+          <span class="spinner"></span>
+        </button>
+        <button id="manual-add-btn">添加</button>
       </div>
-      <div id="wake-word-label"></div>
-      <div id="voice-status"></div>
-      <button id="mic-btn" title="按住说话">
-        <span class="mic-icon">🎙️</span>
-        <span class="spinner"></span>
-      </button>
-      <div id="transcript-preview"></div>
+      <div id="input-status-row">
+        <button id="wake-btn">🎧 开启唤醒</button>
+        <div id="mic-level-wrap"><div id="mic-level-bar"></div></div>
+        <div id="wake-word-label"></div>
+        <div id="voice-status"></div>
+        <div id="transcript-preview"></div>
+      </div>
     </div>
   </main>
 
