@@ -9,39 +9,68 @@ echo "║      志翔日程  初始化              ║"
 echo "╚══════════════════════════════════╝"
 echo ""
 
-# ── 1. 检查 Python ───────────────────────────────────────────────────────────
-if command -v python3.12 &>/dev/null; then
-    PYTHON_BIN="python3.12"
-elif command -v python3 &>/dev/null; then
-    PYTHON_BIN="python3"
-else
-    echo "✗ 未找到 python3，请先安装 Python 3.12"
-    echo "  https://www.python.org/downloads/"
-    exit 1
-fi
-PY_VER=$("$PYTHON_BIN" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-echo "→ Python $PY_VER（推荐 3.12）"
+# ── 1. 确保 Python 3.12 可用（必要时自动安装）────────────────────────────────
+_ensure_python312() {
+    if command -v python3.12 &>/dev/null; then
+        echo "python3.12"
+        return
+    fi
 
-# ── 2. 创建虚拟环境（仅当 Zhixiang venv 存在且为 3.12 时跳过）──────────────────
+    echo "→ 未找到 python3.12，尝试自动安装..." >&2
+
+    # 安装 / 更新 Homebrew
+    if ! command -v brew &>/dev/null; then
+        echo "→ 未检测到 Homebrew，正在安装..." >&2
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Apple Silicon 路径
+        if [ -f /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        fi
+    fi
+
+    if ! command -v brew &>/dev/null; then
+        echo "✗ Homebrew 安装失败，请手动安装 Python 3.12" >&2
+        echo "  https://www.python.org/downloads/" >&2
+        exit 1
+    fi
+
+    echo "→ 通过 Homebrew 安装 python@3.12..." >&2
+    brew install python@3.12
+
+    # brew 安装后的常见路径
+    for candidate in \
+        "$(brew --prefix python@3.12 2>/dev/null)/bin/python3.12" \
+        /opt/homebrew/bin/python3.12 \
+        /usr/local/bin/python3.12; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return
+        fi
+    done
+
+    echo "✗ python3.12 安装后仍无法找到，请重开终端后重试" >&2
+    exit 1
+}
+
+PYTHON_BIN=$(_ensure_python312)
+PY_VER=$("$PYTHON_BIN" -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor))")
+echo "→ Python $PY_VER"
+
+# ── 2. 创建虚拟环境（存在且为 3.12 则跳过）───────────────────────────────────
 NEED_VENV=true
 if [ -f "$VENV_DIR/bin/python" ]; then
-    VENV_VER=$("$VENV_DIR/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "")
+    VENV_VER=$("$VENV_DIR/bin/python" -c "import sys; print(str(sys.version_info.major)+'.'+str(sys.version_info.minor))" 2>/dev/null || echo "")
     if [ "$VENV_VER" = "3.12" ]; then
-        echo "→ 虚拟环境 .venv（Python 3.12）已存在，跳过"
+        echo "→ 虚拟环境 .venv (Python 3.12) 已存在，跳过"
         NEED_VENV=false
     else
-        echo "→ 虚拟环境 .venv 存在但 Python 版本为 $VENV_VER，重新创建..."
+        echo "→ 虚拟环境 .venv 版本为 $VENV_VER，重新创建..."
         rm -rf "$VENV_DIR"
     fi
 fi
 
 if [ "$NEED_VENV" = true ]; then
-    if [ "$PY_VER" != "3.12" ]; then
-        echo "✗ 当前 Python 版本为 $PY_VER，需要 3.12 才能创建虚拟环境"
-        echo "  请先安装 Python 3.12：https://www.python.org/downloads/"
-        exit 1
-    fi
-    echo "→ 创建虚拟环境 .venv（Python 3.12）..."
+    echo "→ 创建虚拟环境 .venv (Python 3.12)..."
     "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
@@ -59,7 +88,6 @@ ALIAS_CMD="alias Zhixiang='$REPO_DIR/start.sh'"
 ZSHRC="$HOME/.zshrc"
 
 if grep -q "alias Zhixiang=" "$ZSHRC" 2>/dev/null; then
-    # 更新已有 alias（兼容 macOS sed）
     sed -i '' "s|alias Zhixiang=.*|$ALIAS_CMD|" "$ZSHRC"
     echo "→ 已更新 ~/.zshrc 中的 Zhixiang alias"
 else
