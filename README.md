@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.3-blue)
+![Version](https://img.shields.io/badge/version-0.0.4-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
@@ -121,6 +121,9 @@ Zhixiang/
 ---
 
 ## 版本历史
+
+### v0.0.4 (2026-05)
+- 时间轴范围调整为 07:00–22:00
 
 ### v0.0.3 (2026-05)
 - 支持多 LLM：Gemini 2.5 Flash / DeepSeek-V3 可在设置中切换
