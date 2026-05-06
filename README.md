@@ -1,14 +1,21 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.3-blue)
+![Version](https://img.shields.io/badge/version-0.0.4-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 ![Stars](https://img.shields.io/github/stars/MichaelChaoLi-cpu/Zhixiang?style=social)
 
-个人语音日程管理助手。用自然语言或语音添加任务，在时间轴上拖拽排期，由 Gemini AI 智能规划全天。
+个人语音日程管理助手。用自然语言或语音添加任务，在时间轴上拖拽排期，由 AI 智能规划全天。
 
-> 语音音频仅在本机处理（faster-whisper），仅文字内容发送给 Gemini，保护隐私。
+支持两款主流 LLM，可在设置中随时切换：
+
+| LLM | 说明 | 获取 API Key |
+|-----|------|-------------|
+| **Google Gemini 2.5 Flash** | 默认推荐，有免费额度 | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| **DeepSeek-V3** | 高性价比替代方案，能力强，价格低 | [DeepSeek Platform](https://platform.deepseek.com/) |
+
+> 语音音频仅在本机处理（faster-whisper），仅文字内容发送给所选 LLM，保护隐私。
 
 ---
 
@@ -24,7 +31,9 @@ source ~/.zshrc
 
 之后在任意终端输入 `Zhixiang` 即可启动，浏览器自动打开 `http://localhost:4096`。
 
-**首次使用**：点击右上角 ⚙️ 设置，填入 Gemini API Key（[免费获取](https://aistudio.google.com/app/apikey)）。
+**首次使用**：点击右上角 ⚙️ 设置，选择 LLM 并填入对应 API Key：
+- Gemini：[Google AI Studio 免费获取](https://aistudio.google.com/app/apikey)
+- DeepSeek：[DeepSeek Platform 注册获取](https://platform.deepseek.com/)
 
 ---
 
@@ -73,7 +82,7 @@ source ~/.zshrc
 |----|------|
 | 后端 | Python · Flask · SQLite |
 | 语音识别 | faster-whisper（本地，small 模型） |
-| AI 处理 | Google Gemini 2.5 Flash |
+| AI 处理 | Google Gemini 2.5 Flash / DeepSeek-V3（可切换） |
 | 唤醒词 | MFCC + DTW 相似度匹配（本地，无需联网） |
 | 前端 | 原生 JS · CSS 变量（深色 / 浅色主题） |
 
@@ -106,11 +115,15 @@ Zhixiang/
 | 变量 | 说明 | 默认 |
 |------|------|------|
 | `GEMINI_API_KEY` | Gemini API Key（可在 UI 设置中配置） | — |
+| `DEEPSEEK_API_KEY` | DeepSeek API Key（可在 UI 设置中配置） | — |
 | `PORT` | 服务端口 | `4096` |
 
 ---
 
 ## 版本历史
+
+### v0.0.4 (2026-05)
+- 时间轴范围调整为 07:00–22:00
 
 ### v0.0.3 (2026-05)
 - 支持多 LLM：Gemini 2.5 Flash / DeepSeek-V3 可在设置中切换

@@ -14,8 +14,8 @@ const state = {
 };
 
 /* ── Timeline constants ────────────────────────────────────────────── */
-const WORK_START  = 9 * 60;   // 09:00 in minutes
-const WORK_END    = 21 * 60;  // 21:00 in minutes
+const WORK_START  = 7 * 60;   // 07:00 in minutes
+const WORK_END    = 22 * 60;  // 22:00 in minutes
 const PX_PER_MIN  = 1.5;
 const TOTAL_PX    = (WORK_END - WORK_START) * PX_PER_MIN;
 
