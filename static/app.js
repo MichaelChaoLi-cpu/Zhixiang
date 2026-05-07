@@ -300,10 +300,12 @@ function renderTimeline(items) {
     const statusIcon = item.status === "completed" ? "✓ " : "";
     const descHtml = item.description
       ? `<div class="task-block-desc">${escapeHtml(item.description)}</div>` : "";
+    const taskNoHtml = item.task_no
+      ? `<span class="task-no-badge">${escapeHtml(item.task_no)}</span>` : "";
 
     block.innerHTML = `
       <div class="task-block-title">
-        <span class="task-title-text">${statusIcon}${escapeHtml(item.content)}</span>
+        ${taskNoHtml}<span class="task-title-text">${statusIcon}${escapeHtml(item.content)}</span>
       </div>
       ${descHtml}
       <div class="task-block-meta">

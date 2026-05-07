@@ -527,6 +527,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
 }
 
 .task-title-text {
@@ -1357,6 +1359,20 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 #toast.error { border-color: var(--danger); color: var(--danger); }
+
+/* ── Task number badge ─────────────────────────────────────────────── */
+.task-no-badge {
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 4px;
+  letter-spacing: .03em;
+  flex-shrink: 0;
+  align-self: center;
+}
 
 /* ── Note editor ───────────────────────────────────────────────────── */
 .task-block:has(.note-editor-panel) { overflow: visible; z-index: 10; }

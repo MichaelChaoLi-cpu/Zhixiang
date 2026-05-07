@@ -158,6 +158,7 @@ def init_db():
         ("parallel_group",  "INTEGER"),
         ("parallel_reason", "TEXT"),
         ("description",     "TEXT DEFAULT ''"),
+        ("task_no",         "TEXT"),
     ]
     for col, col_def in migrations:
         if not _column_exists(conn, "work_items", col):
@@ -177,6 +178,21 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def _assign_task_no(conn, date: str, item_id: int):
+    """Assign next available T01–T99 for the given date if item has no task_no yet."""
+    existing = conn.execute("SELECT task_no FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if existing and existing["task_no"]:
+        return
+    used = {r["task_no"] for r in conn.execute(
+        "SELECT task_no FROM work_items WHERE date=? AND task_no IS NOT NULL", (date,)
+    ).fetchall()}
+    for i in range(1, 100):
+        no = f"T{i:02d}"
+        if no not in used:
+            conn.execute("UPDATE work_items SET task_no=? WHERE id=?", (no, item_id))
+            return
 
 
 def reschedule_stale_tasks():
@@ -298,7 +314,7 @@ def get_items():
     conn = get_db()
     rows = conn.execute(
         """SELECT id, date, content, description, position, created_at,
-                  duration_min, start_time, status, parallel_group, parallel_reason
+                  duration_min, start_time, status, parallel_group, parallel_reason, task_no
            FROM work_items WHERE date=? ORDER BY start_time ASC NULLS LAST, position ASC, id ASC""",
         (date,)
     ).fetchall()
@@ -349,8 +365,11 @@ def add_items():
                VALUES (?, ?, ?, ?, ?, ?)""",
             (date, content, description, next_pos, duration_min, start_time)
         )
+        new_id = cur.lastrowid
+        if start_time:
+            _assign_task_no(conn, date, new_id)
         inserted.append({
-            "id": cur.lastrowid, "date": date, "content": content,
+            "id": new_id, "date": date, "content": content,
             "description": description, "position": next_pos,
             "duration_min": duration_min, "start_time": start_time,
             "status": "pending", "parallel_group": None, "parallel_reason": None
@@ -411,6 +430,10 @@ def update_item(item_id):
             list(fields.values()) + [item_id]
         )
         conn.commit()
+        # Assign task_no when start_time is first set on this item
+        if "start_time" in fields and fields["start_time"] and not item["task_no"]:
+            _assign_task_no(conn, item["date"], item_id)
+            conn.commit()
 
     updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
     conn.close()
@@ -468,8 +491,9 @@ def suspend_item(item_id):
 
     if item.get("start_time") and elapsed > 0:
         # Keep the elapsed portion as a suspended record on the timeline
+        # Clear task_no so re-scheduling gets a fresh number
         conn.execute(
-            "UPDATE work_items SET status='suspended', duration_min=? WHERE id=?",
+            "UPDATE work_items SET status='suspended', duration_min=?, task_no=NULL WHERE id=?",
             (elapsed, item_id)
         )
         # Add remaining task back to pool
@@ -609,6 +633,8 @@ def schedule_pool_item(pool_id):
     )
     new_id = cur.lastrowid
     conn.execute("DELETE FROM task_pool WHERE id=?", (pool_id,))
+    if start_time:
+        _assign_task_no(conn, date, new_id)
     conn.commit()
 
     inserted = conn.execute("SELECT * FROM work_items WHERE id=?", (new_id,)).fetchone()
