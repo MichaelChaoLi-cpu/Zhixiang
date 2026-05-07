@@ -326,6 +326,7 @@ function renderTimeline(items) {
     initBlockDrag(block, item);
     initTitleEdit(block, item);
     initDurationEdit(block, item);
+    initTimeEdit(block, item);
     initNoteEdit(block, item);
     tracks.appendChild(block);
   });
@@ -524,6 +525,44 @@ function initDurationEdit(block, item) {
     input.addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); input.blur(); }
       if (e.key === "Escape") { input.value = item.duration_min; input.blur(); }
+    });
+  });
+}
+
+function initTimeEdit(block, item) {
+  if (item.status === "completed" || item.status === "suspended") return;
+  const label = block.querySelector(".task-time-label");
+  if (!label) return;
+  label.title = "双击编辑开始时间";
+  label.style.cursor = "text";
+
+  label.addEventListener("dblclick", e => {
+    e.stopPropagation();
+    if (block.querySelector(".time-edit-input")) return;
+
+    const input = document.createElement("input");
+    input.type = "time";
+    input.className = "time-edit-input title-input";
+    input.value = item.start_time || "09:00";
+    label.replaceWith(input);
+    input.focus();
+
+    async function save() {
+      const newTime = input.value;
+      if (newTime && newTime !== item.start_time) {
+        await fetch(`/api/items/${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start_time: newTime }),
+        });
+      }
+      await loadItems();
+    }
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = item.start_time; input.blur(); }
     });
   });
 }
