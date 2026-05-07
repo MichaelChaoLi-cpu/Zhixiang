@@ -5,6 +5,7 @@ const state = {
   selectedDate: formatDate(new Date()),
   items: [],
   poolItems: [],
+  unscheduledItems: [],
   datesWithItems: new Set(),
   isReorderMode: false,
   isRecording: false,
@@ -121,7 +122,13 @@ async function selectDate(dateStr) {
   state.selectedDate = dateStr;
   document.getElementById("selected-date-label").textContent = friendlyDate(dateStr);
   renderCalendar();
-  await loadItems();
+  await Promise.all([loadItems(), loadPool()]);
+  // Auto-expand pool so it's always visible when switching dates
+  if (!state.poolExpanded) {
+    state.poolExpanded = true;
+    document.getElementById("pool-section").classList.add("expanded");
+    document.getElementById("pool-toggle").textContent = "▲";
+  }
 }
 
 /* ── Items & Timeline ─────────────────────────────────────────────── */
@@ -129,7 +136,6 @@ async function loadItems() {
   const res   = await fetch(`/api/items?date=${state.selectedDate}`);
   state.items = await res.json();
   renderTimeline(state.items);
-  renderPool();
 }
 
 async function loadDatesWithItems() {
@@ -139,9 +145,17 @@ async function loadDatesWithItems() {
   renderCalendar();
 }
 
+async function refreshAll() {
+  await Promise.all([loadItems(), loadPool()]);
+}
+
 async function loadPool() {
-  const res       = await fetch("/api/pool");
-  state.poolItems = await res.json();
+  const [poolRes, unscheduledRes] = await Promise.all([
+    fetch("/api/pool"),
+    fetch("/api/items/unscheduled"),
+  ]);
+  state.poolItems       = await poolRes.json();
+  state.unscheduledItems = await unscheduledRes.json();
   renderPool();
 }
 
@@ -237,10 +251,9 @@ function renderTimeline(items) {
     }
   }
 
-  // Separate scheduled vs unscheduled vs suspended
-  const scheduled   = items.filter(it => it.start_time && it.status !== "suspended");
-  const unscheduled = items.filter(it => !it.start_time && it.status !== "suspended");
-  const suspended   = items.filter(it => it.start_time && it.status === "suspended");
+  // Separate scheduled vs suspended (unscheduled items are managed by the pool)
+  const scheduled = items.filter(it => it.start_time && it.status !== "suspended");
+  const suspended = items.filter(it => it.start_time && it.status === "suspended");
 
   // Auto-detect overlapping tasks and assign columns
   const colMap = assignColumns(scheduled);
@@ -387,16 +400,13 @@ async function completeItem(id) {
 async function suspendItem(id) {
   const res = await fetch(`/api/items/${id}/suspend`, { method: "POST" });
   if (!res.ok) { showToast("挂起失败", true); return; }
-  await loadItems();
-  await loadPool();
+  await refreshAll();
   showToast("已移至任务池");
 }
 
 async function deleteItem(id) {
   await fetch(`/api/items/${id}`, { method: "DELETE" });
-  state.items = state.items.filter(i => i.id !== id);
-  renderTimeline(state.items);
-  await loadDatesWithItems();
+  await Promise.all([refreshAll(), loadDatesWithItems()]);
 }
 
 /* ── Block drag (reschedule by dragging on timeline) ─────────────────── */
@@ -687,8 +697,7 @@ async function addItems(itemsPayload) {
     });
     if (!res.ok) throw new Error("Failed to save items");
   }
-  await loadItems();
-  await loadDatesWithItems();
+  await Promise.all([refreshAll(), loadDatesWithItems()]);
 }
 
 async function saveReorder(orderedItems) {
@@ -752,7 +761,7 @@ function renderPool() {
   const list        = document.getElementById("pool-list");
   const countEl     = document.getElementById("pool-count");
   const poolItems   = state.poolItems;
-  const unscheduled = state.items.filter(it => !it.start_time && it.status !== "suspended");
+  const unscheduled = state.unscheduledItems;
   countEl.textContent = poolItems.length + unscheduled.length;
 
   list.innerHTML = "";
@@ -803,9 +812,7 @@ function renderPool() {
   list.querySelectorAll(".work-delete-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       await fetch(`/api/items/${btn.dataset.id}`, { method: "DELETE" });
-      state.items = state.items.filter(i => i.id !== parseInt(btn.dataset.id));
-      renderTimeline(state.items);
-      await loadDatesWithItems();
+      await Promise.all([loadItems(), loadPool(), loadDatesWithItems()]);
     });
   });
   list.querySelectorAll(".pool-schedule-btn").forEach(btn => {
@@ -852,7 +859,7 @@ async function scheduleWorkItem(itemId, anchorBtn) {
     if (!text) {
       parsedDate = state.selectedDate;
       parsedTime = null;
-      parsedEl.textContent = "→ 保持未排期";
+      parsedEl.textContent = `→ 保持未排期（${parsedDate}）`;
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
       return;
@@ -895,8 +902,7 @@ async function scheduleWorkItem(itemId, anchorBtn) {
       body: JSON.stringify(body),
     });
     if (!res.ok) { showToast("排期失败", true); return; }
-    await loadItems();
-    await loadDatesWithItems();
+    await Promise.all([refreshAll(), loadDatesWithItems()]);
     showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "保持未排期");
   });
 }
@@ -909,7 +915,7 @@ async function schedulePoolItem(poolId, anchorBtn) {
   dialog.className = "pool-schedule-dialog";
   dialog.innerHTML = `
     <div class="psd-title">排期时间（支持自然语言）</div>
-    <input class="psd-input" type="text" placeholder="如：明天上午10点、下周一14:00，留空则不排期" />
+    <input class="psd-input" type="text" placeholder="如：14:00、下午两点，留空则加入 ${state.selectedDate} 未排期" />
     <div class="psd-parsed hidden"></div>
     <div class="psd-actions">
       <button class="psd-parse-btn">解析</button>
@@ -934,7 +940,7 @@ async function schedulePoolItem(poolId, anchorBtn) {
     if (!text) {
       parsedDate = state.selectedDate;
       parsedTime = null;
-      parsedEl.textContent = "→ 不排期（放入未排期列表）";
+      parsedEl.textContent = `→ 加入 ${parsedDate} 未排期列表`;
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
       return;
@@ -976,9 +982,7 @@ async function schedulePoolItem(poolId, anchorBtn) {
       body: JSON.stringify({ date: parsedDate, start_time: parsedTime }),
     });
     if (!res.ok) { showToast("排期失败", true); return; }
-    await loadPool();
-    await loadItems();
-    await loadDatesWithItems();
+    await Promise.all([refreshAll(), loadDatesWithItems()]);
     showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "已移至未排期列表");
   });
 }
@@ -1125,8 +1129,7 @@ async function applyAIPlan() {
   });
   if (!res.ok) { showToast("应用失败", true); return; }
   closeAIPlanModal();
-  await loadItems();
-  await loadDatesWithItems();
+  await Promise.all([refreshAll(), loadDatesWithItems()]);
   showToast("AI 规划已应用");
 }
 

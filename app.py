@@ -307,6 +307,21 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/items/unscheduled", methods=["GET"])
+def get_unscheduled_items():
+    """All work_items across all dates that have no start_time and are not suspended."""
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT id, date, content, description, position, created_at,
+                  duration_min, start_time, status, parallel_group, parallel_reason, task_no, pinned
+           FROM work_items
+           WHERE (start_time IS NULL OR start_time = '') AND status != 'suspended'
+           ORDER BY date ASC, position ASC, id ASC"""
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/api/items", methods=["GET"])
 def get_items():
     date = request.args.get("date")
