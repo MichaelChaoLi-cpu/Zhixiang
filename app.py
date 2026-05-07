@@ -159,6 +159,7 @@ def init_db():
         ("parallel_reason", "TEXT"),
         ("description",     "TEXT DEFAULT ''"),
         ("task_no",         "TEXT"),
+        ("pinned",          "INTEGER DEFAULT 0"),
     ]
     for col, col_def in migrations:
         if not _column_exists(conn, "work_items", col):
@@ -204,7 +205,7 @@ def reschedule_stale_tasks():
 
     conn = get_db()
     rows = conn.execute(
-        "SELECT id, start_time FROM work_items WHERE date=? AND status='pending' AND start_time IS NOT NULL",
+        "SELECT id, start_time FROM work_items WHERE date=? AND status='pending' AND start_time IS NOT NULL AND (pinned IS NULL OR pinned=0)",
         (today,)
     ).fetchall()
     for row in rows:
@@ -314,7 +315,7 @@ def get_items():
     conn = get_db()
     rows = conn.execute(
         """SELECT id, date, content, description, position, created_at,
-                  duration_min, start_time, status, parallel_group, parallel_reason, task_no
+                  duration_min, start_time, status, parallel_group, parallel_reason, task_no, pinned
            FROM work_items WHERE date=? ORDER BY start_time ASC NULLS LAST, position ASC, id ASC""",
         (date,)
     ).fetchall()
@@ -419,7 +420,7 @@ def update_item(item_id):
         return jsonify({"error": "item not found"}), 404
 
     fields = {}
-    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason", "date"):
+    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason", "date", "pinned"):
         if key in data:
             fields[key] = data[key]
 
@@ -501,11 +502,12 @@ def suspend_item(item_id):
             "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
             (item["content"], remaining_duration, item["date"])
         )
-        # Shift subsequent items forward by remaining_duration only
+        # Shift subsequent items forward by remaining_duration only (skip pinned)
         if remaining_duration > 0:
             later = conn.execute(
                 """SELECT id, start_time FROM work_items
-                   WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL""",
+                   WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL
+                     AND (pinned IS NULL OR pinned=0)""",
                 (item["date"], item["start_time"], item_id)
             ).fetchall()
             for row in later:
@@ -549,7 +551,7 @@ def extend_item(item_id):
         later = conn.execute(
             """SELECT id, start_time FROM work_items
                WHERE date=? AND start_time >= ? AND start_time < ? AND id != ?
-                 AND start_time IS NOT NULL""",
+                 AND start_time IS NOT NULL AND (pinned IS NULL OR pinned=0)""",
             (item["date"], minutes_to_time(old_end_mins), minutes_to_time(new_end_mins), item_id)
         ).fetchall()
         for row in later:
