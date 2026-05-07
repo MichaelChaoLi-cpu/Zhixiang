@@ -1,9 +1,9 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.6-blue)
+![Version](https://img.shields.io/badge/version-0.0.7-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 ![Stars](https://img.shields.io/github/stars/MichaelChaoLi-cpu/Zhixiang?style=social)
 
 个人语音日程管理助手。用自然语言或语音添加任务，在时间轴上拖拽排期，由 AI 智能规划全天。
@@ -21,15 +21,22 @@
 
 ## 快速开始
 
-**前提：macOS，推荐 Python 3.12**
+**前提：Python 3.12+（推荐）**
 
+**macOS / Linux**
 ```bash
 git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
-./Zhixiang/init.sh
-source ~/.zshrc
+bash Zhixiang/init.sh
+source ~/.zshrc   # 或 source ~/.bashrc
 ```
-
 之后在任意终端输入 `Zhixiang` 即可启动，浏览器自动打开 `http://localhost:4096`。
+
+**Windows**
+```
+1. 安装 Python 3.12（勾选 "Add Python to PATH"）
+2. 双击 init.bat
+3. 双击 start.bat
+```
 
 **首次使用**：点击右上角 ⚙️ 设置，选择 LLM 并填入对应 API Key：
 - Gemini：[Google AI Studio 免费获取](https://aistudio.google.com/app/apikey)
@@ -53,7 +60,8 @@ source ~/.zshrc
 |------|------|
 | 拖动任务块 | 纵向拖拽，吸附到 15 分钟整点 |
 | 点击时长徽章 | 直接修改任务时长 |
-| 点击任务名 | 内联编辑任务名称 |
+| 双击任务名 | 内联编辑任务名称 |
+| 双击任务空白区 | 记录日志和笔记（保存在任务描述字段） |
 | 并行任务 | 时间重叠自动并列显示，不堆叠 |
 | 短任务 | 不足 60 分钟悬停展开显示完整内容 |
 
@@ -92,8 +100,10 @@ source ~/.zshrc
 ```
 Zhixiang/
 ├── app.py              # Flask 后端 + API
-├── init.sh             # 一次性初始化（建 venv、装依赖、写 alias）
-├── start.sh            # 启动脚本
+├── init.sh             # 初始化脚本（macOS / Linux）
+├── start.sh            # 启动脚本（macOS / Linux）
+├── init.bat            # 初始化脚本（Windows）
+├── start.bat           # 启动脚本（Windows）
 ├── requirement.txt     # Python 依赖
 ├── LICENSE
 ├── templates/
@@ -120,6 +130,13 @@ Zhixiang/
 ---
 
 ## 版本历史
+
+### v0.0.7 (2026-05)
+- 跨平台支持：新增 Windows（`init.bat` / `start.bat`），`init.sh` 兼容 Linux（apt / dnf / pacman）
+- 双击任务名称可内联编辑（时间轴与任务池均支持）
+- 双击任务空白区域可记录日志和笔记
+- 启动时自动检测被占用端口，从 4096 开始逐一 +1
+- 电脑 sleep 后重启，未完成任务自动推移到当前时间 +15 分钟
 
 ### v0.0.6 (2026-05)
 - 未排期任务统一显示在任务池，移除时间轴底部"未排期"区域
