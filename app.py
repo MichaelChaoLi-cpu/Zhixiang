@@ -538,6 +538,27 @@ def delete_pool_item(pool_id):
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/pool/<int:pool_id>", methods=["PUT"])
+def update_pool_item(pool_id):
+    data = request.get_json()
+    conn = get_db()
+    item = conn.execute("SELECT * FROM task_pool WHERE id=?", (pool_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+    fields = {}
+    for key in ("content", "duration_min"):
+        if key in data:
+            fields[key] = data[key]
+    if fields:
+        set_clause = ", ".join(f"{k}=?" for k in fields)
+        conn.execute(f"UPDATE task_pool SET {set_clause} WHERE id=?", list(fields.values()) + [pool_id])
+        conn.commit()
+    updated = conn.execute("SELECT * FROM task_pool WHERE id=?", (pool_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(updated))
+
+
 @app.route("/api/pool/<int:pool_id>/schedule", methods=["POST"])
 def schedule_pool_item(pool_id):
     data = request.get_json()

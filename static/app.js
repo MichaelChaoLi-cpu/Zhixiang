@@ -433,10 +433,10 @@ document.addEventListener("mouseup", async () => {
 function initTitleEdit(block, item) {
   const span = block.querySelector(".task-title-text");
   if (!span) return;
-  span.title = "点击编辑任务名";
+  span.title = "双击编辑任务名";
   span.style.cursor = "text";
 
-  span.addEventListener("click", e => {
+  span.addEventListener("dblclick", e => {
     e.stopPropagation();
     if (block.querySelector(".title-input")) return;
     const input = document.createElement("input");
@@ -588,6 +588,53 @@ async function saveReorder(orderedItems) {
   await loadItems();
 }
 
+/* ── Pool item inline title edit ────────────────────────────────────── */
+function initPoolTitleEdit(el) {
+  const span = el.querySelector(".pool-item-content");
+  if (!span) return;
+  span.title = "双击编辑任务名";
+  span.style.cursor = "text";
+
+  span.addEventListener("dblclick", e => {
+    e.stopPropagation();
+    if (el.querySelector(".pool-title-input")) return;
+    const original = span.textContent;
+    const input = document.createElement("input");
+    input.className = "pool-title-input title-input";
+    input.value = original;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    async function save() {
+      const newContent = input.value.trim() || original;
+      if (newContent !== original) {
+        const isPoolItem = !el.classList.contains("pool-item-work");
+        const itemId = el.querySelector("[data-id]")?.dataset.id;
+        if (itemId) {
+          const url = isPoolItem ? `/api/pool/${itemId}` : `/api/items/${itemId}`;
+          await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: newContent }),
+          });
+        }
+      }
+      const newSpan = document.createElement("span");
+      newSpan.className = "pool-item-content";
+      newSpan.textContent = newContent;
+      input.replaceWith(newSpan);
+      initPoolTitleEdit(el);
+    }
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = original; input.blur(); }
+    });
+  });
+}
+
 /* ── Task Pool ─────────────────────────────────────────────────────── */
 function renderPool() {
   const list        = document.getElementById("pool-list");
@@ -635,6 +682,8 @@ function renderPool() {
     `;
     list.appendChild(el);
   });
+
+  list.querySelectorAll(".pool-item").forEach(el => initPoolTitleEdit(el));
 
   list.querySelectorAll(".work-schedule-btn").forEach(btn => {
     btn.addEventListener("click", () => scheduleWorkItem(parseInt(btn.dataset.id), btn));
