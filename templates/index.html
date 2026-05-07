@@ -11,11 +11,12 @@
 
   <!-- Top bar -->
   <header id="topbar">
-    <h1>📅 日程计划</h1>
+    <h1 id="topbar-title">📅 日程计划</h1>
     <div class="spacer"></div>
     <span style="font-size:.78rem;color:var(--text-dim);" id="topbar-date"></span>
     <span id="topbar-version" style="font-size:.7rem;color:var(--text-dim);opacity:.5;"></span>
     <button id="update-btn" title="检查并更新到最新版本" style="font-size:.7rem;padding:2px 7px;opacity:.5;">检测最新版本</button>
+    <button id="lang-btn" style="font-size:.7rem;padding:2px 7px;">EN</button>
     <button id="theme-btn" title="切换主题">🌙</button>
     <button id="settings-btn" title="唤醒词设置">⚙️</button>
   </header>
@@ -24,13 +25,13 @@
   <div id="settings-overlay" class="hidden">
     <div id="settings-panel">
       <div id="settings-header">
-        <h3>设置</h3>
+        <h3 id="settings-title-text">设置</h3>
         <button id="settings-close">✕</button>
       </div>
 
       <!-- AI Model section -->
       <div class="settings-section">
-        <div class="settings-section-title">AI 模型</div>
+        <div class="settings-section-title" id="settings-ai-model-title">AI 模型</div>
         <div id="llm-provider-row">
           <button id="llm-btn-gemini" class="llm-provider-btn">Gemini</button>
           <button id="llm-btn-deepseek" class="llm-provider-btn">DeepSeek</button>
@@ -38,7 +39,7 @@
         <!-- Gemini key -->
         <div id="gemini-key-section">
           <div id="gemini-configured" class="hidden key-configured">
-            <span class="apikey-status">✓ 已配置</span>
+            <span class="apikey-status" id="gemini-status-text">✓ 已配置</span>
             <button id="gemini-delete-btn" class="settings-danger-btn">删除 Key</button>
           </div>
           <div id="gemini-form" class="key-form">
@@ -50,7 +51,7 @@
         <!-- DeepSeek key -->
         <div id="deepseek-key-section" class="hidden">
           <div id="deepseek-configured" class="hidden key-configured">
-            <span class="apikey-status">✓ 已配置</span>
+            <span class="apikey-status" id="deepseek-status-text">✓ 已配置</span>
             <button id="deepseek-delete-btn" class="settings-danger-btn">删除 Key</button>
           </div>
           <div id="deepseek-form" class="key-form">
@@ -63,8 +64,8 @@
 
       <!-- Wake word section -->
       <div class="settings-section">
-        <div class="settings-section-title">唤醒词采样</div>
-        <p class="settings-desc">录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。</p>
+        <div class="settings-section-title" id="settings-wake-title">唤醒词采样</div>
+        <p class="settings-desc" id="settings-wake-desc">录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。</p>
         <div id="sample-progress-row">
           <div id="sample-dots"></div>
           <span id="sample-count-label">0 / 5</span>
@@ -83,7 +84,7 @@
   <div id="ai-plan-overlay" class="hidden">
     <div id="ai-plan-panel">
       <div id="ai-plan-header">
-        <h3>✨ AI 规划预览</h3>
+        <h3 id="ai-plan-title-text">✨ AI 规划预览</h3>
         <button id="ai-plan-close">✕</button>
       </div>
       <div id="ai-plan-body">
@@ -112,13 +113,13 @@
 
     <!-- CSV export -->
     <div id="export-section">
-      <div class="export-title">导出日程</div>
+      <div class="export-title" id="export-title">导出日程</div>
       <div class="export-row">
-        <label>从</label>
+        <label id="export-from-label">从</label>
         <input type="date" id="export-from" />
       </div>
       <div class="export-row">
-        <label>至</label>
+        <label id="export-to-label">至</label>
         <input type="date" id="export-to" />
       </div>
       <div class="export-btns">
@@ -135,7 +136,7 @@
       <div class="spacer"></div>
       <button id="ai-plan-btn">✨ AI 规划</button>
       <div id="mode-toggle">
-        <span>模式：</span>
+        <span id="mode-label">模式：</span>
         <button id="mode-btn">排序模式</button>
       </div>
     </div>
@@ -149,7 +150,7 @@
     <!-- Task pool (collapsible) -->
     <div id="pool-section">
       <div id="pool-header">
-        <span>任务池</span>
+        <span id="pool-title">任务池</span>
         <span id="pool-count">0</span>
         <button id="pool-toggle">▼</button>
       </div>
@@ -159,7 +160,7 @@
     <!-- Bottom input bar (manual + voice merged) -->
     <div id="input-bar">
       <div id="input-main-row">
-        <select id="mic-select" title="麦克风"><option>检测中…</option></select>
+        <select id="mic-select" title="麦克风"><option id="mic-detecting-opt">检测中…</option></select>
         <textarea id="manual-input" rows="1" placeholder="输入任务，如：下午2点开会一小时（Shift+Enter 添加）" autocomplete="off"></textarea>
         <button id="mic-btn" title="按住说话">
           <span class="mic-icon">🎙️</span>
@@ -183,9 +184,5 @@
 <div id="toast"></div>
 
 <script src="/static/app.js"></script>
-<script>
-  document.getElementById("topbar-date").textContent =
-    new Date().toLocaleDateString("zh-CN", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
-</script>
 </body>
 </html>
