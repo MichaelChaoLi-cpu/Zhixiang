@@ -1603,6 +1603,30 @@ async function init() {
     if (el) el.textContent = `v${d.version}`;
   });
 
+  document.getElementById("update-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("update-btn");
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const res = await fetch("/api/update", { method: "POST" });
+      const data = await res.json();
+      if (!data.success) {
+        alert(`更新失败：${data.error || data.output}`);
+        return;
+      }
+      const msg = data.updated
+        ? `已更新！\n本地版本：v${data.local_version}\n最新版本：v${data.remote_version}\n\n即将刷新页面…`
+        : `已是最新版本 v${data.remote_version}`;
+      alert(msg);
+      if (data.updated) location.reload();
+    } catch (e) {
+      alert("更新请求失败：" + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "检测最新版本";
+    }
+  });
+
   await loadDatesWithItems();
   await loadItems();
   await loadPool();

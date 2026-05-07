@@ -949,6 +949,47 @@ def get_version():
     return jsonify({"version": __version__})
 
 
+@app.route("/api/update", methods=["POST"])
+def do_update():
+    import subprocess, re
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    local_ver = __version__
+
+    try:
+        result = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            cwd=repo_dir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        output = result.stdout + result.stderr
+        updated = "Already up to date." not in output and result.returncode == 0
+
+        # Read the remote version from app.py after pull
+        remote_ver = local_ver
+        try:
+            with open(os.path.join(repo_dir, "app.py"), encoding="utf-8") as f:
+                content = f.read()
+            m = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', content)
+            if m:
+                remote_ver = m.group(1)
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": result.returncode == 0,
+            "updated": updated,
+            "local_version": local_ver,
+            "remote_version": remote_ver,
+            "output": output.strip(),
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({"success": False, "error": "git pull 超时"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/logs/<date>", methods=["GET"])
 def get_log(date):
     log_path = os.path.join(LOGS_DIR, f"{date}.md")
