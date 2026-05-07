@@ -326,6 +326,7 @@ function renderTimeline(items) {
     initBlockDrag(block, item);
     initTitleEdit(block, item);
     initDurationEdit(block, item);
+    initNoteEdit(block, item);
     tracks.appendChild(block);
   });
 
@@ -523,6 +524,59 @@ function initDurationEdit(block, item) {
     input.addEventListener("keydown", e => {
       if (e.key === "Enter") { e.preventDefault(); input.blur(); }
       if (e.key === "Escape") { input.value = item.duration_min; input.blur(); }
+    });
+  });
+}
+
+function initNoteEdit(block, item) {
+  block.addEventListener("dblclick", e => {
+    if (e.target.closest(".task-title-text, .task-action-btn, .task-duration-badge, .note-editor-panel")) return;
+    e.stopPropagation();
+    if (block.querySelector(".note-editor-panel")) return;
+
+    const panel = document.createElement("div");
+    panel.className = "note-editor-panel";
+    panel.innerHTML = `
+      <textarea class="note-editor-textarea" placeholder="记录日志和笔记…" rows="3">${escapeHtml(item.description || "")}</textarea>
+      <div class="note-editor-actions">
+        <span class="note-editor-hint">Ctrl+Enter 保存 · Esc 取消</span>
+        <button class="task-action-btn note-save-btn">保存</button>
+        <button class="task-action-btn note-cancel-btn">取消</button>
+      </div>
+    `;
+    block.appendChild(panel);
+    const ta = panel.querySelector(".note-editor-textarea");
+    ta.focus();
+
+    async function save() {
+      const newDesc = ta.value.trim();
+      if (newDesc !== (item.description || "").trim()) {
+        await fetch(`/api/items/${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: newDesc }),
+        });
+        item.description = newDesc;
+        let descEl = block.querySelector(".task-block-desc");
+        if (newDesc) {
+          if (!descEl) {
+            descEl = document.createElement("div");
+            descEl.className = "task-block-desc";
+            block.querySelector(".task-block-title").after(descEl);
+          }
+          descEl.textContent = newDesc;
+        } else if (descEl) {
+          descEl.remove();
+        }
+      }
+      panel.remove();
+    }
+
+    panel.querySelector(".note-save-btn").addEventListener("click", save);
+    panel.querySelector(".note-cancel-btn").addEventListener("click", () => panel.remove());
+    ta.addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); save(); }
+      if (e.key === "Escape") { e.preventDefault(); panel.remove(); }
     });
   });
 }
