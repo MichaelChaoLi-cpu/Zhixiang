@@ -377,7 +377,7 @@ def update_item(item_id):
         return jsonify({"error": "item not found"}), 404
 
     fields = {}
-    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason"):
+    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason", "date"):
         if key in data:
             fields[key] = data[key]
 
@@ -570,6 +570,44 @@ def schedule_pool_item(pool_id):
     inserted = conn.execute("SELECT * FROM work_items WHERE id=?", (new_id,)).fetchone()
     conn.close()
     return jsonify(dict(inserted)), 201
+
+
+@app.route("/api/pool/parse-time", methods=["POST"])
+def pool_parse_time():
+    data = request.get_json()
+    text = data.get("text", "").strip()
+    context_date = data.get("context_date", datetime.now().strftime("%Y-%m-%d"))
+    if not text:
+        return jsonify({"date": context_date, "start_time": None})
+
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    now_str = now.strftime("%H:%M")
+    weekday_cn = ["一","二","三","四","五","六","日"][now.weekday()]
+
+    prompt = (
+        f"今天是 {today_str}，星期{weekday_cn}，当前时刻是 {now_str}。当前查看日期是 {context_date}。\n"
+        "用户输入一段描述排期时间的文字，请解析为 JSON：\n"
+        "- date：日期，格式 \"YYYY-MM-DD\"；如未提及具体日期则使用当前查看日期\n"
+        f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」解析为 {now_str}；如未提及则为 null\n"
+        "只返回 JSON，不添加解释：{\"date\": \"YYYY-MM-DD\", \"start_time\": \"HH:MM 或 null\"}\n\n"
+        f"用户输入：{text}"
+    )
+
+    try:
+        result = extract_json(call_llm(prompt))
+        if isinstance(result, list):
+            result = result[0] if result else {}
+        date = result.get("date") or context_date
+        start_time = result.get("start_time")
+        if start_time and not re.match(r"^\d{2}:\d{2}$", str(start_time)):
+            start_time = None
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", str(date)):
+            date = context_date
+        return jsonify({"date": date, "start_time": start_time})
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Schedule generation / apply ───────────────────────────────────────────────

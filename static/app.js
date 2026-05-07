@@ -129,6 +129,7 @@ async function loadItems() {
   const res   = await fetch(`/api/items?date=${state.selectedDate}`);
   state.items = await res.json();
   renderTimeline(state.items);
+  renderPool();
 }
 
 async function loadDatesWithItems() {
@@ -342,47 +343,9 @@ function renderTimeline(items) {
     btn.addEventListener("click", () => deleteItem(parseInt(btn.dataset.id)));
   });
 
-  // Unscheduled section
-  if (unscheduled.length > 0) {
-    const section = document.createElement("div");
-    section.className = "unscheduled-section";
-    section.innerHTML = `<div class="unscheduled-title">未排期（${unscheduled.length}）</div>`;
-    const ul = document.createElement("ul");
-    ul.id = "items-list";
-    unscheduled.forEach((item, idx) => {
-      const li = document.createElement("li");
-      li.className = "work-item unscheduled-item";
-      li.dataset.id = item.id;
-      li.draggable = true;
-      li.innerHTML = `
-        <span class="drag-handle" title="拖动排序">⠿</span>
-        <span class="item-num">${idx + 1}</span>
-        <span class="item-content">${escapeHtml(item.content)}</span>
-        <span class="item-duration">${item.duration_min || 60}分</span>
-        <button class="item-delete" title="删除" data-id="${item.id}">✕</button>
-      `;
-      ul.appendChild(li);
-    });
-    section.appendChild(ul);
-    tracks.parentElement.after ? null : null;
-
-    // Append below the timeline wrapper
-    const wrapper = document.getElementById("timeline-wrapper");
-    // Remove old unscheduled section if present
-    const old = wrapper.parentElement.querySelector(".unscheduled-section");
-    if (old) old.remove();
-    wrapper.insertAdjacentElement("afterend", section);
-
-    // Delete buttons
-    section.querySelectorAll(".item-delete").forEach(btn => {
-      btn.addEventListener("click", () => deleteItem(parseInt(btn.dataset.id)));
-    });
-
-    setupDragDrop(ul);
-  } else {
-    const old = document.querySelector(".unscheduled-section");
-    if (old) old.remove();
-  }
+  // Remove any stale unscheduled section
+  const oldUnscheduled = document.querySelector(".unscheduled-section");
+  if (oldUnscheduled) oldUnscheduled.remove();
 
   // Empty state
   if (items.length === 0) {
@@ -627,18 +590,37 @@ async function saveReorder(orderedItems) {
 
 /* ── Task Pool ─────────────────────────────────────────────────────── */
 function renderPool() {
-  const list      = document.getElementById("pool-list");
-  const countEl   = document.getElementById("pool-count");
-  const items     = state.poolItems;
-  countEl.textContent = items.length;
+  const list        = document.getElementById("pool-list");
+  const countEl     = document.getElementById("pool-count");
+  const poolItems   = state.poolItems;
+  const unscheduled = state.items.filter(it => !it.start_time && it.status !== "suspended");
+  countEl.textContent = poolItems.length + unscheduled.length;
 
   list.innerHTML = "";
-  if (!items.length) {
-    list.innerHTML = `<div class="pool-empty">暂无挂起任务</div>`;
+  if (!poolItems.length && !unscheduled.length) {
+    list.innerHTML = `<div class="pool-empty">暂无待办任务</div>`;
     return;
   }
 
-  items.forEach(item => {
+  // Unscheduled work_items (date-bound but no time slot yet)
+  unscheduled.forEach(item => {
+    const el = document.createElement("div");
+    el.className = "pool-item pool-item-work";
+    el.innerHTML = `
+      <div class="pool-item-main">
+        <span class="pool-item-content">${escapeHtml(item.content)}</span>
+        <span class="pool-item-duration">${item.duration_min || 60}分</span>
+      </div>
+      <div class="pool-item-actions">
+        <button class="task-action-btn work-schedule-btn" data-id="${item.id}">排期</button>
+        <button class="task-action-btn work-delete-btn"   data-id="${item.id}">✕</button>
+      </div>
+    `;
+    list.appendChild(el);
+  });
+
+  // task_pool items (date-unbound backlog)
+  poolItems.forEach(item => {
     const el = document.createElement("div");
     el.className = "pool-item";
     el.innerHTML = `
@@ -654,8 +636,19 @@ function renderPool() {
     list.appendChild(el);
   });
 
+  list.querySelectorAll(".work-schedule-btn").forEach(btn => {
+    btn.addEventListener("click", () => scheduleWorkItem(parseInt(btn.dataset.id), btn));
+  });
+  list.querySelectorAll(".work-delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await fetch(`/api/items/${btn.dataset.id}`, { method: "DELETE" });
+      state.items = state.items.filter(i => i.id !== parseInt(btn.dataset.id));
+      renderTimeline(state.items);
+      await loadDatesWithItems();
+    });
+  });
   list.querySelectorAll(".pool-schedule-btn").forEach(btn => {
-    btn.addEventListener("click", () => schedulePoolItem(parseInt(btn.dataset.id)));
+    btn.addEventListener("click", () => schedulePoolItem(parseInt(btn.dataset.id), btn));
   });
   list.querySelectorAll(".pool-delete-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
@@ -665,20 +658,168 @@ function renderPool() {
   });
 }
 
-async function schedulePoolItem(poolId) {
-  const date = state.selectedDate;
-  const timeStr = prompt("排期到哪个时间？(格式 HH:MM，留空则放入未排期)", "");
-  const start_time = timeStr && /^\d{2}:\d{2}$/.test(timeStr.trim()) ? timeStr.trim() : null;
-  const res = await fetch(`/api/pool/${poolId}/schedule`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date, start_time }),
+async function scheduleWorkItem(itemId, anchorBtn) {
+  const existing = document.querySelector(".pool-schedule-dialog");
+  if (existing) { existing.remove(); return; }
+
+  const dialog = document.createElement("div");
+  dialog.className = "pool-schedule-dialog";
+  dialog.innerHTML = `
+    <div class="psd-title">排期时间（支持自然语言）</div>
+    <input class="psd-input" type="text" placeholder="如：明天上午10点、下周一14:00，留空则不排期" />
+    <div class="psd-parsed hidden"></div>
+    <div class="psd-actions">
+      <button class="psd-parse-btn">解析</button>
+      <button class="psd-confirm-btn" disabled>确认</button>
+      <button class="psd-cancel-btn">✕</button>
+    </div>
+  `;
+  anchorBtn.closest(".pool-item").appendChild(dialog);
+  dialog.querySelector(".psd-input").focus();
+
+  let parsedDate = state.selectedDate;
+  let parsedTime = null;
+
+  const parsedEl   = dialog.querySelector(".psd-parsed");
+  const confirmBtn = dialog.querySelector(".psd-confirm-btn");
+  const parseBtn   = dialog.querySelector(".psd-parse-btn");
+
+  dialog.querySelector(".psd-cancel-btn").addEventListener("click", () => dialog.remove());
+
+  async function parse() {
+    const text = dialog.querySelector(".psd-input").value.trim();
+    if (!text) {
+      parsedDate = state.selectedDate;
+      parsedTime = null;
+      parsedEl.textContent = "→ 保持未排期";
+      parsedEl.classList.remove("hidden");
+      confirmBtn.disabled = false;
+      return;
+    }
+    parseBtn.disabled = true;
+    parseBtn.textContent = "…";
+    try {
+      const res  = await fetch("/api/pool/parse-time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, context_date: state.selectedDate }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      parsedDate = data.date;
+      parsedTime = data.start_time;
+      parsedEl.textContent = `→ ${parsedDate}${parsedTime ? " " + parsedTime : "（未排期）"}`;
+      parsedEl.classList.remove("hidden");
+      confirmBtn.disabled = false;
+    } catch (e) {
+      parsedEl.textContent = `解析失败：${e.message}`;
+      parsedEl.classList.remove("hidden");
+    } finally {
+      parseBtn.disabled = false;
+      parseBtn.textContent = "解析";
+    }
+  }
+
+  parseBtn.addEventListener("click", parse);
+  dialog.querySelector(".psd-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") parse();
   });
-  if (!res.ok) { showToast("排期失败", true); return; }
-  await loadPool();
-  await loadItems();
-  await loadDatesWithItems();
-  showToast("已从任务池移至日程");
+
+  confirmBtn.addEventListener("click", async () => {
+    dialog.remove();
+    const body = { start_time: parsedTime, date: parsedDate };
+    const res = await fetch(`/api/items/${itemId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { showToast("排期失败", true); return; }
+    await loadItems();
+    await loadDatesWithItems();
+    showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "保持未排期");
+  });
+}
+
+async function schedulePoolItem(poolId, anchorBtn) {
+  const existing = document.querySelector(".pool-schedule-dialog");
+  if (existing) { existing.remove(); return; }
+
+  const dialog = document.createElement("div");
+  dialog.className = "pool-schedule-dialog";
+  dialog.innerHTML = `
+    <div class="psd-title">排期时间（支持自然语言）</div>
+    <input class="psd-input" type="text" placeholder="如：明天上午10点、下周一14:00，留空则不排期" />
+    <div class="psd-parsed hidden"></div>
+    <div class="psd-actions">
+      <button class="psd-parse-btn">解析</button>
+      <button class="psd-confirm-btn" disabled>确认</button>
+      <button class="psd-cancel-btn">✕</button>
+    </div>
+  `;
+  anchorBtn.closest(".pool-item").appendChild(dialog);
+  dialog.querySelector(".psd-input").focus();
+
+  let parsedDate = state.selectedDate;
+  let parsedTime = null;
+
+  const parsedEl  = dialog.querySelector(".psd-parsed");
+  const confirmBtn = dialog.querySelector(".psd-confirm-btn");
+  const parseBtn   = dialog.querySelector(".psd-parse-btn");
+
+  dialog.querySelector(".psd-cancel-btn").addEventListener("click", () => dialog.remove());
+
+  async function parse() {
+    const text = dialog.querySelector(".psd-input").value.trim();
+    if (!text) {
+      parsedDate = state.selectedDate;
+      parsedTime = null;
+      parsedEl.textContent = "→ 不排期（放入未排期列表）";
+      parsedEl.classList.remove("hidden");
+      confirmBtn.disabled = false;
+      return;
+    }
+    parseBtn.disabled = true;
+    parseBtn.textContent = "…";
+    try {
+      const res  = await fetch("/api/pool/parse-time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, context_date: state.selectedDate }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      parsedDate = data.date;
+      parsedTime = data.start_time;
+      parsedEl.textContent = `→ ${parsedDate}${parsedTime ? " " + parsedTime : "（未排期）"}`;
+      parsedEl.classList.remove("hidden");
+      confirmBtn.disabled = false;
+    } catch (e) {
+      parsedEl.textContent = `解析失败：${e.message}`;
+      parsedEl.classList.remove("hidden");
+    } finally {
+      parseBtn.disabled = false;
+      parseBtn.textContent = "解析";
+    }
+  }
+
+  parseBtn.addEventListener("click", parse);
+  dialog.querySelector(".psd-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") parse();
+  });
+
+  confirmBtn.addEventListener("click", async () => {
+    dialog.remove();
+    const res = await fetch(`/api/pool/${poolId}/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: parsedDate, start_time: parsedTime }),
+    });
+    if (!res.ok) { showToast("排期失败", true); return; }
+    await loadPool();
+    await loadItems();
+    await loadDatesWithItems();
+    showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "已移至未排期列表");
+  });
 }
 
 /* ── CSV Export ──────────────────────────────────────────────────────── */
