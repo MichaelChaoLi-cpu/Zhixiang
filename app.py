@@ -1174,9 +1174,18 @@ def deepseek_apikey_delete():
 
 
 if __name__ == "__main__":
-    import threading, webbrowser
+    import socket, threading, webbrowser
     init_db()
-    port = int(os.environ.get("PORT", 4096))
+
+    def _find_free_port(start: int) -> int:
+        port = start
+        while True:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(("localhost", port)) != 0:
+                    return port
+            port += 1
+
+    port = _find_free_port(int(os.environ.get("PORT", 4096)))
     # Open browser after server starts (only on first launch, not reloader reload)
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         def _open():
