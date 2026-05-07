@@ -249,7 +249,7 @@ body {
 
 #input-main-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
 }
 
@@ -272,9 +272,14 @@ body {
   border-radius: 8px;
   color: var(--text);
   font-size: .83rem;
+  font-family: inherit;
   padding: 5px 10px;
   outline: none;
   transition: border-color .15s;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+  min-height: 30px;
 }
 #manual-input:focus { border-color: var(--accent); }
 

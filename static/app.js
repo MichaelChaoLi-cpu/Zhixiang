@@ -1451,6 +1451,7 @@ function setupManualInput() {
     try {
       await processAddCommand(text);
       input.value = "";
+      input.style.height = "auto";
     } catch {
       // error already shown by processAddCommand
     } finally {
@@ -1461,7 +1462,12 @@ function setupManualInput() {
 
   btn.addEventListener("click", submit);
   input.addEventListener("keydown", e => {
-    if (e.key === "Enter") submit();
+    if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); submit(); }
+  });
+  // Auto-grow textarea
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
   });
 }
 
