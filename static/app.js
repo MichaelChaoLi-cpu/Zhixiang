@@ -1,3 +1,412 @@
+/* ── i18n ───────────────────────────────────────────────────────────── */
+const LOCALES = {
+  zh: {
+    pageTitle: "日程计划",
+    topbarCheckUpdate: "检测最新版本",
+    topbarCheckUpdateTitle: "检查并更新到最新版本",
+    themeBtnTitle: "切换主题",
+    settingsBtnTitle: "唤醒词设置",
+    langBtn: "EN",
+    settingsTitle: "设置",
+    settingsAiModel: "AI 模型",
+    settingsConfigured: "✓ 已配置",
+    settingsDeleteKey: "删除 Key",
+    settingsGeminiPlaceholder: "输入 Gemini API Key",
+    settingsDeepSeekPlaceholder: "输入 DeepSeek API Key",
+    settingsSave: "保存",
+    settingsWakeSample: "唤醒词采样",
+    settingsWakeDesc: "录制 5 段你说「<strong>志翔</strong>」的声音，系统将学习识别你的声音。",
+    settingsRecordSample: "按住录制样本",
+    settingsClearSample: "清除所有样本",
+    settingsSampleHint: "建议：每次说完整的「志翔」，停顿约 1 秒后松开",
+    aiPlanTitle: "✨ AI 规划预览",
+    aiPlanLoading: "正在生成规划…",
+    aiPlanCancel: "取消",
+    aiPlanApply: "应用规划",
+    months: ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+    weekdays: ["日","一","二","三","四","五","六"],
+    calTitle: "{y}年 {month}",
+    exportTitle: "导出日程",
+    exportFrom: "从",
+    exportTo: "至",
+    aiPlanBtn: "✨ AI 规划",
+    modeLabel: "模式：",
+    modeSortBtn: "排序模式",
+    modeAddBtn: "返回添加模式",
+    poolTitle: "任务池",
+    poolEmpty: "暂无待办任务",
+    poolScheduleBtn: "排期",
+    micTitle: "麦克风",
+    micDetecting: "检测中…",
+    inputPlaceholder: "输入任务，如：下午2点开会一小时（Shift+Enter 添加）",
+    micBtnTitle: "按住说话",
+    addBtn: "添加",
+    wakeBtn: "🎧 开启唤醒",
+    wakeBtnActive: "🔴 关闭唤醒",
+    statusRecordingReorder: "🎙️ 请说出排序指令…",
+    statusRecording: "🎙️ 录音中… 松开按钮即可处理",
+    statusTranscribing: "📝 本地转录中…",
+    statusProcessing: "⏳ Gemini 整理中…",
+    statusIdleReorder: "排序模式：按住麦克风说出排序指令",
+    statusIdle: "按住麦克风按钮说出工作事项",
+    durationUnit: "分钟",
+    durationShort: "分",
+    pinTitle: "已图钉，起始时间锁定",
+    unpinTitle: "取消图钉",
+    pinLockTitle: "图钉锁定起始时间",
+    taskComplete: "✓ 完成",
+    taskSuspend: "⏸ 挂起",
+    taskExtend: "+ 延长",
+    taskDelete: "✕",
+    durationEditTitle: "点击修改时长",
+    titleEditTitle: "双击编辑任务名",
+    timeEditTitle: "双击编辑开始时间",
+    extendLabel: "延长",
+    extendUnit: "分钟",
+    extendConfirm: "确认",
+    notePlaceholder: "记录日志和笔记…",
+    noteHint: "Ctrl+Enter 保存 · Esc 取消",
+    noteSave: "保存",
+    noteCancel: "取消",
+    scheduleTitle: "排期时间（支持自然语言）",
+    schedulePlaceholderWork: "如：明天上午10点、下周一14:00，留空则不排期",
+    schedulePlaceholderPool: "如：14:00、下午两点，留空则加入 {date} 未排期",
+    scheduleParse: "解析",
+    scheduleConfirm: "确认",
+    parseResult: "→ {date} {time}",
+    parseResultNoTime: "→ {date}（未排期）",
+    parseFailed: "解析失败：{msg}",
+    unscheduledLabel: "→ 保持未排期（{date}）",
+    unscheduledAddLabel: "→ 加入 {date} 未排期列表",
+    emptyState: "今天还没有工作事项<br>按住麦克风按钮开始添加",
+    toastOpFailed: "操作失败",
+    toastCompleted: "已标记完成",
+    toastSuspendFailed: "挂起失败",
+    toastSuspended: "已移至任务池",
+    toastExtendFailed: "延长失败",
+    toastExtended: "已延长 {n} 分钟",
+    toastScheduleFailed: "排期失败",
+    toastScheduled: "已排期到 {date} {time}",
+    toastUnscheduled: "保持未排期",
+    toastMovedToPool: "已移至未排期列表",
+    toastDropScheduled: "已排期到 {time}",
+    toastNoDate: "请先选择日期",
+    toastSelectDates: "请选择起止日期",
+    toastDateRangeError: "起始日期不能晚于结束日期",
+    toastShortRecording: "录音太短，请重试",
+    toastNoSpeech: "未识别到语音内容",
+    toastNoItems: "未识别到工作事项",
+    toastNoReorder: "当前没有可排序的事项",
+    toastAdded: "已添加工作事项",
+    toastAddedTo: "已添加到 {date}",
+    toastReordered: "排序已更新",
+    toastAIPlanApplied: "AI 规划已应用",
+    toastAIPlanFailed: "应用失败",
+    toastWakeFailed: "唤醒监听启动失败：{msg}",
+    toastWakeDetected: "已唤醒，说完说「{word}」结束",
+    toastSampleCleared: "样本已清除",
+    toastSaveFailed: "保存失败",
+    toastDeviceError: "无法打开该设备：{msg}",
+    toastMicError: "无法打开麦克风：{msg}",
+    wakeLabelListening: "监听中「{word}」…",
+    wakeLabelRecording: "录音中，说「{word}」结束…",
+    sampleEnough: "样本已足够（可继续添加）",
+    sampleEnabled: "已启用声纹检测，阈值 {val}",
+    sampleNeeded: "还需录制 {n} 个样本",
+    sampleRecording: "🔴 录制中…",
+    sampleSpeakPrompt: "请说「志翔」…",
+    sampleTooShort: "录音太短，请重试",
+    sampleSaving: "保存中…",
+    sampleError: "错误：{msg}",
+    sampleRecordBtn: "按住录制样本",
+    micPermDenied: "麦克风权限被拒绝。请在浏览器地址栏点击 🔒 图标允许麦克风，或前往<br><b>系统设置 → 隐私与安全 → 麦克风</b>，开启浏览器权限后刷新页面。",
+    micNotFound: "未检测到麦克风设备",
+    micInitFailed: "麦克风初始化失败：{msg}",
+    micDeviceDefault: "麦克风 {n}",
+    micDeviceNone: "未检测到麦克风",
+    micDeviceListFailed: "无法获取设备列表",
+    errTranscribe: "转录失败：{msg}",
+    errGeneral: "错误：{msg}",
+    errAIProcess: "AI 处理失败",
+    errReorder: "排序失败",
+    errGenerate: "生成失败",
+    confirmDeleteKey: "确定要删除 API Key 吗？",
+    confirmClearSamples: "确认清除所有唤醒词样本？",
+    updateFailed: "更新失败：{msg}",
+    updateSuccess: "已更新！\n本地版本：v{local}\n最新版本：v{remote}\n\n即将刷新页面…",
+    updateUpToDate: "已是最新版本 v{version}",
+    updateRequestFailed: "更新请求失败：{msg}",
+    updateBtn: "检测最新版本",
+    autoExtended: "{n} 个任务已自动延长 15 分钟",
+    friendlyDate: "{y}年{m}月{d}日",
+    dateLocale: "zh-CN",
+  },
+  en: {
+    pageTitle: "Schedule",
+    topbarCheckUpdate: "Check for Updates",
+    topbarCheckUpdateTitle: "Check and update to the latest version",
+    themeBtnTitle: "Toggle theme",
+    settingsBtnTitle: "Wake word settings",
+    langBtn: "中文",
+    settingsTitle: "Settings",
+    settingsAiModel: "AI Model",
+    settingsConfigured: "✓ Configured",
+    settingsDeleteKey: "Delete Key",
+    settingsGeminiPlaceholder: "Enter Gemini API Key",
+    settingsDeepSeekPlaceholder: "Enter DeepSeek API Key",
+    settingsSave: "Save",
+    settingsWakeSample: "Wake Word Sampling",
+    settingsWakeDesc: "Record 5 clips of you saying <strong>Zhixiang</strong> so the system can learn your voice.",
+    settingsRecordSample: "Hold to Record Sample",
+    settingsClearSample: "Clear All Samples",
+    settingsSampleHint: "Tip: Say the full wake word each time, pause ~1 second before releasing",
+    aiPlanTitle: "✨ AI Planning Preview",
+    aiPlanLoading: "Generating plan…",
+    aiPlanCancel: "Cancel",
+    aiPlanApply: "Apply Plan",
+    months: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+    weekdays: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],
+    calTitle: "{month} {y}",
+    exportTitle: "Export Schedule",
+    exportFrom: "From",
+    exportTo: "To",
+    aiPlanBtn: "✨ AI Plan",
+    modeLabel: "Mode:",
+    modeSortBtn: "Sort Mode",
+    modeAddBtn: "Back to Add",
+    poolTitle: "Task Pool",
+    poolEmpty: "No pending tasks",
+    poolScheduleBtn: "Schedule",
+    micTitle: "Microphone",
+    micDetecting: "Detecting…",
+    inputPlaceholder: "Add task, e.g.: meeting at 2pm for 1 hour (Shift+Enter to add)",
+    micBtnTitle: "Hold to speak",
+    addBtn: "Add",
+    wakeBtn: "🎧 Enable Wake",
+    wakeBtnActive: "🔴 Disable Wake",
+    statusRecordingReorder: "🎙️ Say your reorder command…",
+    statusRecording: "🎙️ Recording… release to process",
+    statusTranscribing: "📝 Transcribing locally…",
+    statusProcessing: "⏳ AI processing…",
+    statusIdleReorder: "Sort mode: hold mic and say reorder command",
+    statusIdle: "Hold the mic button to dictate tasks",
+    durationUnit: "min",
+    durationShort: "min",
+    pinTitle: "Pinned — start time locked",
+    unpinTitle: "Unpin",
+    pinLockTitle: "Pin to lock start time",
+    taskComplete: "✓ Done",
+    taskSuspend: "⏸ Suspend",
+    taskExtend: "+ Extend",
+    taskDelete: "✕",
+    durationEditTitle: "Click to edit duration",
+    titleEditTitle: "Double-click to edit name",
+    timeEditTitle: "Double-click to edit start time",
+    extendLabel: "Extend",
+    extendUnit: "min",
+    extendConfirm: "OK",
+    notePlaceholder: "Add notes and logs…",
+    noteHint: "Ctrl+Enter to save · Esc to cancel",
+    noteSave: "Save",
+    noteCancel: "Cancel",
+    scheduleTitle: "Schedule time (natural language supported)",
+    schedulePlaceholderWork: "e.g.: tomorrow 10am, next Monday 14:00, leave blank to keep unscheduled",
+    schedulePlaceholderPool: "e.g.: 14:00, 2pm, leave blank to add to {date} unscheduled",
+    scheduleParse: "Parse",
+    scheduleConfirm: "Confirm",
+    parseResult: "→ {date} {time}",
+    parseResultNoTime: "→ {date} (unscheduled)",
+    parseFailed: "Parse failed: {msg}",
+    unscheduledLabel: "→ Keep unscheduled ({date})",
+    unscheduledAddLabel: "→ Add to {date} unscheduled",
+    emptyState: "No tasks yet today<br>Hold the mic button to start adding",
+    toastOpFailed: "Operation failed",
+    toastCompleted: "Marked as done",
+    toastSuspendFailed: "Suspend failed",
+    toastSuspended: "Moved to task pool",
+    toastExtendFailed: "Extend failed",
+    toastExtended: "Extended by {n} min",
+    toastScheduleFailed: "Schedule failed",
+    toastScheduled: "Scheduled to {date} {time}",
+    toastUnscheduled: "Kept unscheduled",
+    toastMovedToPool: "Moved to unscheduled list",
+    toastDropScheduled: "Scheduled to {time}",
+    toastNoDate: "Please select a date first",
+    toastSelectDates: "Please select a date range",
+    toastDateRangeError: "Start date cannot be after end date",
+    toastShortRecording: "Recording too short, please try again",
+    toastNoSpeech: "No speech detected",
+    toastNoItems: "No tasks detected",
+    toastNoReorder: "No tasks to reorder",
+    toastAdded: "Task added",
+    toastAddedTo: "Added to {date}",
+    toastReordered: "Order updated",
+    toastAIPlanApplied: "AI plan applied",
+    toastAIPlanFailed: "Apply failed",
+    toastWakeFailed: "Wake listener failed: {msg}",
+    toastWakeDetected: "Awake — say \"{word}\" to stop",
+    toastSampleCleared: "Samples cleared",
+    toastSaveFailed: "Save failed",
+    toastDeviceError: "Cannot open device: {msg}",
+    toastMicError: "Cannot open microphone: {msg}",
+    wakeLabelListening: "Listening for \"{word}\"…",
+    wakeLabelRecording: "Recording — say \"{word}\" to stop…",
+    sampleEnough: "Enough samples (you can add more)",
+    sampleEnabled: "Voice detection enabled, threshold {val}",
+    sampleNeeded: "{n} more sample(s) needed",
+    sampleRecording: "🔴 Recording…",
+    sampleSpeakPrompt: "Say \"Zhixiang\"…",
+    sampleTooShort: "Recording too short, please try again",
+    sampleSaving: "Saving…",
+    sampleError: "Error: {msg}",
+    sampleRecordBtn: "Hold to Record Sample",
+    micPermDenied: "Microphone permission denied. Click the 🔒 icon in the browser address bar to allow access, or go to<br><b>System Settings → Privacy & Security → Microphone</b> and enable browser access, then refresh the page.",
+    micNotFound: "No microphone detected",
+    micInitFailed: "Microphone initialization failed: {msg}",
+    micDeviceDefault: "Microphone {n}",
+    micDeviceNone: "No microphone detected",
+    micDeviceListFailed: "Cannot retrieve device list",
+    errTranscribe: "Transcription failed: {msg}",
+    errGeneral: "Error: {msg}",
+    errAIProcess: "AI processing failed",
+    errReorder: "Reorder failed",
+    errGenerate: "Generation failed",
+    confirmDeleteKey: "Are you sure you want to delete the API Key?",
+    confirmClearSamples: "Clear all wake word samples?",
+    updateFailed: "Update failed: {msg}",
+    updateSuccess: "Updated!\nLocal version: v{local}\nLatest version: v{remote}\n\nRefreshing page…",
+    updateUpToDate: "Already up to date: v{version}",
+    updateRequestFailed: "Update request failed: {msg}",
+    updateBtn: "Check for Updates",
+    autoExtended: "{n} task(s) auto-extended by 15 min",
+    friendlyDate: "{m}/{d}/{y}",
+    dateLocale: "en-US",
+  },
+};
+
+function getCurrentLang() {
+  return localStorage.getItem("lang") || "zh";
+}
+
+function t(key, vars) {
+  const lang = getCurrentLang();
+  let str = (LOCALES[lang] || LOCALES.zh)[key];
+  if (str === undefined) str = (LOCALES.zh)[key] || key;
+  if (vars && typeof str === "string") {
+    str = str.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? vars[k] : `{${k}}`));
+  }
+  return str;
+}
+
+function applyLocale() {
+  const lang = getCurrentLang();
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.title = t("pageTitle");
+
+  function setEl(id, text, placeholder, title) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (text !== undefined && text !== null) el.textContent = text;
+    if (placeholder !== undefined && placeholder !== null) el.placeholder = placeholder;
+    if (title !== undefined && title !== null) el.title = title;
+  }
+
+  // Topbar
+  setEl("topbar-title", "📅 " + t("pageTitle"));
+  setEl("topbar-date", new Date().toLocaleDateString(
+    lang === "zh" ? "zh-CN" : "en-US",
+    { weekday: "long", year: "numeric", month: "long", day: "numeric" }
+  ));
+  setEl("update-btn", t("topbarCheckUpdate"), null, t("topbarCheckUpdateTitle"));
+  setEl("lang-btn", t("langBtn"));
+  setEl("theme-btn", null, null, t("themeBtnTitle"));
+  setEl("settings-btn", null, null, t("settingsBtnTitle"));
+
+  // Settings
+  setEl("settings-title-text", t("settingsTitle"));
+  setEl("settings-ai-model-title", t("settingsAiModel"));
+  setEl("gemini-status-text", t("settingsConfigured"));
+  setEl("gemini-delete-btn", t("settingsDeleteKey"));
+  setEl("gemini-input", null, t("settingsGeminiPlaceholder"));
+  setEl("gemini-save-btn", t("settingsSave"));
+  setEl("deepseek-status-text", t("settingsConfigured"));
+  setEl("deepseek-delete-btn", t("settingsDeleteKey"));
+  setEl("deepseek-input", null, t("settingsDeepSeekPlaceholder"));
+  setEl("deepseek-save-btn", t("settingsSave"));
+  setEl("settings-wake-title", t("settingsWakeSample"));
+  const wakeDesc = document.getElementById("settings-wake-desc");
+  if (wakeDesc) wakeDesc.innerHTML = t("settingsWakeDesc");
+  setEl("sample-record-btn", t("settingsRecordSample"));
+  setEl("sample-clear-btn", t("settingsClearSample"));
+  setEl("sample-hint", t("settingsSampleHint"));
+
+  // AI Plan modal
+  setEl("ai-plan-title-text", t("aiPlanTitle"));
+  setEl("ai-plan-loading", t("aiPlanLoading"));
+  setEl("ai-plan-cancel", t("aiPlanCancel"));
+  setEl("ai-plan-apply", t("aiPlanApply"));
+
+  // Weekdays
+  const wdSpans = document.querySelectorAll(".cal-weekdays span");
+  const wds = t("weekdays");
+  wds.forEach((d, i) => { if (wdSpans[i]) wdSpans[i].textContent = d; });
+
+  // Export
+  setEl("export-title", t("exportTitle"));
+  setEl("export-from-label", t("exportFrom"));
+  setEl("export-to-label", t("exportTo"));
+
+  // Right panel
+  setEl("ai-plan-btn", t("aiPlanBtn"));
+  setEl("mode-label", t("modeLabel"));
+  const modeBtn = document.getElementById("mode-btn");
+  if (modeBtn) modeBtn.textContent = state.isReorderMode ? t("modeAddBtn") : t("modeSortBtn");
+
+  // Pool title
+  setEl("pool-title", t("poolTitle"));
+
+  // Input bar
+  setEl("mic-select", null, null, t("micTitle"));
+  setEl("manual-input", null, t("inputPlaceholder"));
+  setEl("mic-btn", null, null, t("micBtnTitle"));
+  setEl("manual-add-btn", t("addBtn"));
+
+  // Wake button (only if not currently in wake mode)
+  const wakeBtn = document.getElementById("wake-btn");
+  if (wakeBtn) {
+    wakeBtn.textContent = wakeDetector ? t("wakeBtnActive") : t("wakeBtn");
+  }
+
+  // Mic detecting option (before mic devices are populated)
+  const sel = document.getElementById("mic-select");
+  if (sel && sel.options.length === 1) {
+    const opt = sel.options[0];
+    if (opt.id === "mic-detecting-opt") opt.textContent = t("micDetecting");
+  }
+
+  // Update selected date label
+  if (state && state.selectedDate) {
+    const label = document.getElementById("selected-date-label");
+    if (label && label.textContent !== "—") {
+      label.textContent = friendlyDate(state.selectedDate);
+    }
+  }
+
+  // Re-render dynamic content with new locale
+  renderCalendar();
+  if (state && state.items) renderTimeline(state.items);
+  renderPool();
+  setMicState("idle");
+}
+
+function setupLangToggle() {
+  document.getElementById("lang-btn").addEventListener("click", () => {
+    const next = getCurrentLang() === "zh" ? "en" : "zh";
+    localStorage.setItem("lang", next);
+    applyLocale();
+  });
+}
+
 /* ── State ─────────────────────────────────────────────────────────── */
 const state = {
   year: new Date().getFullYear(),
@@ -30,7 +439,11 @@ function formatDate(d) {
 
 function friendlyDate(str) {
   const [y, m, d] = str.split("-");
-  return `${y}年${parseInt(m)}月${parseInt(d)}日`;
+  const tpl = t("friendlyDate");
+  return tpl
+    .replace("{y}", y)
+    .replace("{m}", parseInt(m))
+    .replace("{d}", parseInt(d));
 }
 
 function showToast(msg, isError = false, duration = 2500) {
@@ -49,9 +462,9 @@ function showError(msg) {
   el.textContent = msg;
 }
 
-function timeToMinutes(t) {
-  if (!t) return null;
-  const [h, m] = t.split(":").map(Number);
+function timeToMinutes(ti) {
+  if (!ti) return null;
+  const [h, m] = ti.split(":").map(Number);
   return h * 60 + m;
 }
 
@@ -72,8 +485,11 @@ function escapeHtml(str) {
 /* ── Calendar ──────────────────────────────────────────────────────── */
 function renderCalendar() {
   const { year, month, selectedDate, datesWithItems } = state;
-  const monthNames = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
-  document.getElementById("cal-title").textContent = `${year}年 ${monthNames[month]}`;
+  const months = t("months");
+  const calTpl = t("calTitle");
+  document.getElementById("cal-title").textContent = calTpl
+    .replace("{y}", year)
+    .replace("{month}", months[month]);
 
   const grid = document.getElementById("cal-grid");
   grid.innerHTML = "";
@@ -123,7 +539,6 @@ async function selectDate(dateStr) {
   document.getElementById("selected-date-label").textContent = friendlyDate(dateStr);
   renderCalendar();
   await Promise.all([loadItems(), loadPool()]);
-  // Auto-expand pool so it's always visible when switching dates
   if (!state.poolExpanded) {
     state.poolExpanded = true;
     document.getElementById("pool-section").classList.add("expanded");
@@ -165,9 +580,8 @@ function assignColumns(tasks) {
     .filter(t => timeToMinutes(t.start_time) != null)
     .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
 
-  // Greedy column assignment: each column tracks the end time of its last task
   const colEnds = [];
-  const result  = new Map(); // id -> { col, totalCols }
+  const result  = new Map();
 
   sorted.forEach(item => {
     const start = timeToMinutes(item.start_time);
@@ -178,7 +592,6 @@ function assignColumns(tasks) {
     result.set(item.id, { col, totalCols: 0 });
   });
 
-  // For each task, totalCols = how many columns are active during its interval
   sorted.forEach(item => {
     const start = timeToMinutes(item.start_time);
     const end   = start + (item.duration_min || 60);
@@ -204,29 +617,24 @@ function renderTimeline(items) {
   axis.innerHTML   = "";
   tracks.innerHTML = "";
 
-  // Set container heights
   axis.style.height   = TOTAL_PX + "px";
   tracks.style.height = TOTAL_PX + "px";
 
-  // Draw hour/half-hour labels and gridlines
   for (let mins = WORK_START; mins <= WORK_END; mins += 30) {
     const top = (mins - WORK_START) * PX_PER_MIN;
 
-    // Label
     const label = document.createElement("div");
     label.className = "time-label";
     label.style.top = top + "px";
     label.textContent = minutesToTime(mins);
     axis.appendChild(label);
 
-    // Gridline
     const line = document.createElement("div");
     line.className = "timeline-gridline";
     line.style.top = top + "px";
     tracks.appendChild(line);
   }
 
-  // Current time line (only when viewing today)
   if (state.selectedDate === formatDate(new Date())) {
     const now = new Date();
     const nowMins = now.getHours() * 60 + now.getMinutes();
@@ -251,14 +659,11 @@ function renderTimeline(items) {
     }
   }
 
-  // Separate scheduled vs suspended (unscheduled items are managed by the pool)
   const scheduled = items.filter(it => it.start_time && it.status !== "suspended");
   const suspended = items.filter(it => it.start_time && it.status === "suspended");
 
-  // Auto-detect overlapping tasks and assign columns
   const colMap = assignColumns(scheduled);
 
-  // Render suspended (elapsed) records — non-interactive, dimmed
   suspended.forEach(item => {
     const startMins = timeToMinutes(item.start_time);
     if (startMins == null) return;
@@ -277,13 +682,12 @@ function renderTimeline(items) {
       </div>
       <div class="task-block-meta">
         <span class="task-time-label">${item.start_time} – ${endTime}</span>
-        <span class="task-duration-badge">${item.duration_min || 1}分钟</span>
+        <span class="task-duration-badge">${item.duration_min || 1}${t("durationUnit")}</span>
       </div>
     `;
     tracks.appendChild(block);
   });
 
-  // Render scheduled blocks
   scheduled.forEach(item => {
     const startMins = timeToMinutes(item.start_time);
     if (startMins == null) return;
@@ -296,7 +700,6 @@ function renderTimeline(items) {
     block.dataset.dur = item.duration_min || 60;
     if (item.status === "completed") block.classList.add("completed");
 
-    // Column-based positioning for overlapping tasks
     const layout = colMap.get(item.id) || { col: 0, totalCols: 1 };
     if (layout.totalCols > 1) {
       const pct = 100 / layout.totalCols;
@@ -315,7 +718,8 @@ function renderTimeline(items) {
       ? `<div class="task-block-desc">${escapeHtml(item.description)}</div>` : "";
     const taskNoHtml = item.task_no
       ? `<span class="task-no-badge">${escapeHtml(item.task_no)}</span>` : "";
-    const pinnedHtml = item.pinned ? `<span class="task-pin-icon" title="已图钉，起始时间锁定">📌</span>` : "";
+    const pinnedHtml = item.pinned
+      ? `<span class="task-pin-icon" title="${t("pinTitle")}">📌</span>` : "";
 
     block.innerHTML = `
       <div class="task-block-title">
@@ -324,19 +728,19 @@ function renderTimeline(items) {
       ${descHtml}
       <div class="task-block-meta">
         <span class="task-time-label">${item.start_time} – ${endTime}</span>
-        <span class="task-duration-badge" title="点击修改时长" data-id="${item.id}">${item.duration_min || 60}分钟</span>
+        <span class="task-duration-badge" title="${t("durationEditTitle")}" data-id="${item.id}">${item.duration_min || 60}${t("durationUnit")}</span>
         ${item.parallel_reason ? `<span class="parallel-badge" title="${escapeHtml(item.parallel_reason)}">∥</span>` : ""}
       </div>
       ${item.status !== "completed" ? `
       <div class="task-actions">
-        <button class="task-action-btn btn-complete" data-id="${item.id}">✓ 完成</button>
-        <button class="task-action-btn btn-suspend"  data-id="${item.id}">⏸ 挂起</button>
-        <button class="task-action-btn btn-extend"   data-id="${item.id}">+ 延长</button>
-        <button class="task-action-btn btn-pin ${item.pinned ? 'btn-pin-active' : ''}" data-id="${item.id}" title="${item.pinned ? '取消图钉' : '图钉锁定起始时间'}">📌</button>
-        <button class="task-action-btn btn-delete"   data-id="${item.id}">✕</button>
+        <button class="task-action-btn btn-complete" data-id="${item.id}">${t("taskComplete")}</button>
+        <button class="task-action-btn btn-suspend"  data-id="${item.id}">${t("taskSuspend")}</button>
+        <button class="task-action-btn btn-extend"   data-id="${item.id}">${t("taskExtend")}</button>
+        <button class="task-action-btn btn-pin ${item.pinned ? "btn-pin-active" : ""}" data-id="${item.id}" title="${item.pinned ? t("unpinTitle") : t("pinLockTitle")}">📌</button>
+        <button class="task-action-btn btn-delete"   data-id="${item.id}">${t("taskDelete")}</button>
       </div>` : `
       <div class="task-actions">
-        <button class="task-action-btn btn-delete" data-id="${item.id}">✕</button>
+        <button class="task-action-btn btn-delete" data-id="${item.id}">${t("taskDelete")}</button>
       </div>`}
     `;
 
@@ -348,7 +752,6 @@ function renderTimeline(items) {
     tracks.appendChild(block);
   });
 
-  // Wire action buttons
   tracks.querySelectorAll(".btn-complete").forEach(btn => {
     btn.addEventListener("click", () => completeItem(parseInt(btn.dataset.id)));
   });
@@ -376,15 +779,13 @@ function renderTimeline(items) {
     });
   });
 
-  // Remove any stale unscheduled section
   const oldUnscheduled = document.querySelector(".unscheduled-section");
   if (oldUnscheduled) oldUnscheduled.remove();
 
-  // Empty state
   if (items.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
-    empty.innerHTML = `<span class="icon">📋</span>今天还没有工作事项<br>按住麦克风按钮开始添加`;
+    empty.innerHTML = `<span class="icon">📋</span>${t("emptyState")}`;
     tracks.appendChild(empty);
   }
 }
@@ -392,16 +793,16 @@ function renderTimeline(items) {
 /* ── Item actions ────────────────────────────────────────────────────── */
 async function completeItem(id) {
   const res = await fetch(`/api/items/${id}/complete`, { method: "POST" });
-  if (!res.ok) { showToast("操作失败", true); return; }
+  if (!res.ok) { showToast(t("toastOpFailed"), true); return; }
   await loadItems();
-  showToast("已标记完成");
+  showToast(t("toastCompleted"));
 }
 
 async function suspendItem(id) {
   const res = await fetch(`/api/items/${id}/suspend`, { method: "POST" });
-  if (!res.ok) { showToast("挂起失败", true); return; }
+  if (!res.ok) { showToast(t("toastSuspendFailed"), true); return; }
   await refreshAll();
-  showToast("已移至任务池");
+  showToast(t("toastSuspended"));
 }
 
 async function deleteItem(id) {
@@ -464,7 +865,7 @@ document.addEventListener("mouseup", async () => {
 function initTitleEdit(block, item) {
   const span = block.querySelector(".task-title-text");
   if (!span) return;
-  span.title = "双击编辑任务名";
+  span.title = t("titleEditTitle");
   span.style.cursor = "text";
 
   span.addEventListener("dblclick", e => {
@@ -535,12 +936,11 @@ function initDurationEdit(block, item) {
       }
       const newBadge = document.createElement("span");
       newBadge.className = "task-duration-badge";
-      newBadge.title = "点击修改时长";
+      newBadge.title = t("durationEditTitle");
       newBadge.dataset.id = item.id;
-      newBadge.textContent = `${item.duration_min}分钟`;
+      newBadge.textContent = `${item.duration_min}${t("durationUnit")}`;
       input.replaceWith(newBadge);
 
-      // Update time label and block height
       const startMins = timeToMinutes(item.start_time);
       if (startMins != null) {
         const label = block.querySelector(".task-time-label");
@@ -562,7 +962,7 @@ function initTimeEdit(block, item) {
   if (item.status === "completed" || item.status === "suspended" || item.pinned) return;
   const label = block.querySelector(".task-time-label");
   if (!label) return;
-  label.title = "双击编辑开始时间";
+  label.title = t("timeEditTitle");
   label.style.cursor = "text";
 
   label.addEventListener("dblclick", e => {
@@ -605,11 +1005,11 @@ function initNoteEdit(block, item) {
     const panel = document.createElement("div");
     panel.className = "note-editor-panel";
     panel.innerHTML = `
-      <textarea class="note-editor-textarea" placeholder="记录日志和笔记…" rows="3">${escapeHtml(item.description || "")}</textarea>
+      <textarea class="note-editor-textarea" placeholder="${t("notePlaceholder")}" rows="3">${escapeHtml(item.description || "")}</textarea>
       <div class="note-editor-actions">
-        <span class="note-editor-hint">Ctrl+Enter 保存 · Esc 取消</span>
-        <button class="task-action-btn note-save-btn">保存</button>
-        <button class="task-action-btn note-cancel-btn">取消</button>
+        <span class="note-editor-hint">${t("noteHint")}</span>
+        <button class="task-action-btn note-save-btn">${t("noteSave")}</button>
+        <button class="task-action-btn note-cancel-btn">${t("noteCancel")}</button>
       </div>
     `;
     block.appendChild(panel);
@@ -650,17 +1050,16 @@ function initNoteEdit(block, item) {
 }
 
 function showExtendDialog(id, anchorBtn) {
-  // Remove any existing extend dialog
   const existing = document.querySelector(".extend-dialog");
   if (existing) existing.remove();
 
   const dialog = document.createElement("div");
   dialog.className = "extend-dialog";
   dialog.innerHTML = `
-    <span>延长</span>
+    <span>${t("extendLabel")}</span>
     <input type="number" class="extend-input" value="30" min="5" max="480" step="5" />
-    <span>分钟</span>
-    <button class="extend-confirm">确认</button>
+    <span>${t("extendUnit")}</span>
+    <button class="extend-confirm">${t("extendConfirm")}</button>
     <button class="extend-cancel">✕</button>
   `;
 
@@ -675,14 +1074,13 @@ function showExtendDialog(id, anchorBtn) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ extra_min: extra }),
     });
-    if (!res.ok) { showToast("延长失败", true); return; }
+    if (!res.ok) { showToast(t("toastExtendFailed"), true); return; }
     await loadItems();
-    showToast(`已延长 ${extra} 分钟`);
+    showToast(t("toastExtended", { n: extra }));
   });
 }
 
 async function addItems(itemsPayload) {
-  // Group by date (items may carry their own date field)
   const byDate = {};
   for (const item of itemsPayload) {
     const d = item.date || state.selectedDate;
@@ -713,7 +1111,7 @@ async function saveReorder(orderedItems) {
 function initPoolTitleEdit(el) {
   const span = el.querySelector(".pool-item-content");
   if (!span) return;
-  span.title = "双击编辑任务名";
+  span.title = t("titleEditTitle");
   span.style.cursor = "text";
 
   span.addEventListener("dblclick", e => {
@@ -766,38 +1164,36 @@ function renderPool() {
 
   list.innerHTML = "";
   if (!poolItems.length && !unscheduled.length) {
-    list.innerHTML = `<div class="pool-empty">暂无待办任务</div>`;
+    list.innerHTML = `<div class="pool-empty">${t("poolEmpty")}</div>`;
     return;
   }
 
-  // Unscheduled work_items (date-bound but no time slot yet)
   unscheduled.forEach(item => {
     const el = document.createElement("div");
     el.className = "pool-item pool-item-work";
     el.innerHTML = `
       <div class="pool-item-main">
         <span class="pool-item-content">${escapeHtml(item.content)}</span>
-        <span class="pool-item-duration">${item.duration_min || 60}分</span>
+        <span class="pool-item-duration">${item.duration_min || 60}${t("durationShort")}</span>
       </div>
       <div class="pool-item-actions">
-        <button class="task-action-btn work-schedule-btn" data-id="${item.id}">排期</button>
+        <button class="task-action-btn work-schedule-btn" data-id="${item.id}">${t("poolScheduleBtn")}</button>
         <button class="task-action-btn work-delete-btn"   data-id="${item.id}">✕</button>
       </div>
     `;
     list.appendChild(el);
   });
 
-  // task_pool items (date-unbound backlog)
   poolItems.forEach(item => {
     const el = document.createElement("div");
     el.className = "pool-item";
     el.innerHTML = `
       <div class="pool-item-main">
         <span class="pool-item-content">${escapeHtml(item.content)}</span>
-        <span class="pool-item-duration">${item.duration_min}分</span>
+        <span class="pool-item-duration">${item.duration_min}${t("durationShort")}</span>
       </div>
       <div class="pool-item-actions">
-        <button class="task-action-btn pool-schedule-btn" data-id="${item.id}">排期</button>
+        <button class="task-action-btn pool-schedule-btn" data-id="${item.id}">${t("poolScheduleBtn")}</button>
         <button class="task-action-btn pool-delete-btn"   data-id="${item.id}">✕</button>
       </div>
     `;
@@ -833,12 +1229,12 @@ async function scheduleWorkItem(itemId, anchorBtn) {
   const dialog = document.createElement("div");
   dialog.className = "pool-schedule-dialog";
   dialog.innerHTML = `
-    <div class="psd-title">排期时间（支持自然语言）</div>
-    <input class="psd-input" type="text" placeholder="如：明天上午10点、下周一14:00，留空则不排期" />
+    <div class="psd-title">${t("scheduleTitle")}</div>
+    <input class="psd-input" type="text" placeholder="${t("schedulePlaceholderWork")}" />
     <div class="psd-parsed hidden"></div>
     <div class="psd-actions">
-      <button class="psd-parse-btn">解析</button>
-      <button class="psd-confirm-btn" disabled>确认</button>
+      <button class="psd-parse-btn">${t("scheduleParse")}</button>
+      <button class="psd-confirm-btn" disabled>${t("scheduleConfirm")}</button>
       <button class="psd-cancel-btn">✕</button>
     </div>
   `;
@@ -859,7 +1255,7 @@ async function scheduleWorkItem(itemId, anchorBtn) {
     if (!text) {
       parsedDate = state.selectedDate;
       parsedTime = null;
-      parsedEl.textContent = `→ 保持未排期（${parsedDate}）`;
+      parsedEl.textContent = t("unscheduledLabel", { date: parsedDate });
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
       return;
@@ -870,21 +1266,23 @@ async function scheduleWorkItem(itemId, anchorBtn) {
       const res  = await fetch("/api/pool/parse-time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, context_date: state.selectedDate }),
+        body: JSON.stringify({ text, context_date: state.selectedDate, lang: getCurrentLang() }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       parsedDate = data.date;
       parsedTime = data.start_time;
-      parsedEl.textContent = `→ ${parsedDate}${parsedTime ? " " + parsedTime : "（未排期）"}`;
+      parsedEl.textContent = parsedTime
+        ? t("parseResult", { date: parsedDate, time: parsedTime })
+        : t("parseResultNoTime", { date: parsedDate });
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
     } catch (e) {
-      parsedEl.textContent = `解析失败：${e.message}`;
+      parsedEl.textContent = t("parseFailed", { msg: e.message });
       parsedEl.classList.remove("hidden");
     } finally {
       parseBtn.disabled = false;
-      parseBtn.textContent = "解析";
+      parseBtn.textContent = t("scheduleParse");
     }
   }
 
@@ -901,9 +1299,11 @@ async function scheduleWorkItem(itemId, anchorBtn) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!res.ok) { showToast("排期失败", true); return; }
+    if (!res.ok) { showToast(t("toastScheduleFailed"), true); return; }
     await Promise.all([refreshAll(), loadDatesWithItems()]);
-    showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "保持未排期");
+    showToast(parsedTime
+      ? t("toastScheduled", { date: parsedDate, time: parsedTime })
+      : t("toastUnscheduled"));
   });
 }
 
@@ -914,12 +1314,12 @@ async function schedulePoolItem(poolId, anchorBtn) {
   const dialog = document.createElement("div");
   dialog.className = "pool-schedule-dialog";
   dialog.innerHTML = `
-    <div class="psd-title">排期时间（支持自然语言）</div>
-    <input class="psd-input" type="text" placeholder="如：14:00、下午两点，留空则加入 ${state.selectedDate} 未排期" />
+    <div class="psd-title">${t("scheduleTitle")}</div>
+    <input class="psd-input" type="text" placeholder="${t("schedulePlaceholderPool", { date: state.selectedDate })}" />
     <div class="psd-parsed hidden"></div>
     <div class="psd-actions">
-      <button class="psd-parse-btn">解析</button>
-      <button class="psd-confirm-btn" disabled>确认</button>
+      <button class="psd-parse-btn">${t("scheduleParse")}</button>
+      <button class="psd-confirm-btn" disabled>${t("scheduleConfirm")}</button>
       <button class="psd-cancel-btn">✕</button>
     </div>
   `;
@@ -940,7 +1340,7 @@ async function schedulePoolItem(poolId, anchorBtn) {
     if (!text) {
       parsedDate = state.selectedDate;
       parsedTime = null;
-      parsedEl.textContent = `→ 加入 ${parsedDate} 未排期列表`;
+      parsedEl.textContent = t("unscheduledAddLabel", { date: parsedDate });
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
       return;
@@ -951,21 +1351,23 @@ async function schedulePoolItem(poolId, anchorBtn) {
       const res  = await fetch("/api/pool/parse-time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, context_date: state.selectedDate }),
+        body: JSON.stringify({ text, context_date: state.selectedDate, lang: getCurrentLang() }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       parsedDate = data.date;
       parsedTime = data.start_time;
-      parsedEl.textContent = `→ ${parsedDate}${parsedTime ? " " + parsedTime : "（未排期）"}`;
+      parsedEl.textContent = parsedTime
+        ? t("parseResult", { date: parsedDate, time: parsedTime })
+        : t("parseResultNoTime", { date: parsedDate });
       parsedEl.classList.remove("hidden");
       confirmBtn.disabled = false;
     } catch (e) {
-      parsedEl.textContent = `解析失败：${e.message}`;
+      parsedEl.textContent = t("parseFailed", { msg: e.message });
       parsedEl.classList.remove("hidden");
     } finally {
       parseBtn.disabled = false;
-      parseBtn.textContent = "解析";
+      parseBtn.textContent = t("scheduleParse");
     }
   }
 
@@ -981,9 +1383,11 @@ async function schedulePoolItem(poolId, anchorBtn) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date: parsedDate, start_time: parsedTime }),
     });
-    if (!res.ok) { showToast("排期失败", true); return; }
+    if (!res.ok) { showToast(t("toastScheduleFailed"), true); return; }
     await Promise.all([refreshAll(), loadDatesWithItems()]);
-    showToast(parsedTime ? `已排期到 ${parsedDate} ${parsedTime}` : "已移至未排期列表");
+    showToast(parsedTime
+      ? t("toastScheduled", { date: parsedDate, time: parsedTime })
+      : t("toastMovedToPool"));
   });
 }
 
@@ -997,8 +1401,8 @@ function setupExport() {
   function getDateRange() {
     const from = document.getElementById("export-from").value;
     const to   = document.getElementById("export-to").value;
-    if (!from || !to) { showToast("请选择起止日期", true); return null; }
-    if (from > to)    { showToast("起始日期不能晚于结束日期", true); return null; }
+    if (!from || !to) { showToast(t("toastSelectDates"), true); return null; }
+    if (from > to)    { showToast(t("toastDateRangeError"), true); return null; }
     return { from, to };
   }
 
@@ -1063,13 +1467,14 @@ function closeAIPlanModal() {
 }
 
 async function openAIPlanModal() {
-  if (!state.selectedDate) { showToast("请先选择日期", true); return; }
+  if (!state.selectedDate) { showToast(t("toastNoDate"), true); return; }
   const overlay = document.getElementById("ai-plan-overlay");
   const loading = document.getElementById("ai-plan-loading");
   const planList = document.getElementById("ai-plan-list");
   const footer   = document.getElementById("ai-plan-footer");
 
   overlay.classList.remove("hidden");
+  loading.textContent = t("aiPlanLoading");
   loading.classList.remove("hidden");
   planList.classList.add("hidden");
   footer.classList.add("hidden");
@@ -1084,10 +1489,11 @@ async function openAIPlanModal() {
         date: state.selectedDate,
         work_start: "09:00",
         work_end: "18:00",
+        lang: getCurrentLang(),
       }),
     });
     const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "生成失败");
+    if (!res.ok || data.error) throw new Error(data.error || t("errGenerate"));
 
     state.pendingSchedule = data.schedule;
     loading.classList.add("hidden");
@@ -1095,7 +1501,7 @@ async function openAIPlanModal() {
     planList.classList.remove("hidden");
     footer.classList.remove("hidden");
   } catch (e) {
-    loading.textContent = `生成失败：${e.message}`;
+    loading.textContent = `${t("errGenerate")}：${e.message}`;
   }
 }
 
@@ -1110,7 +1516,7 @@ function renderAIPlanPreview(schedule, container) {
     row.innerHTML = `
       <span class="ai-plan-time">${entry.start_time || "—"}</span>
       <span class="ai-plan-content">${escapeHtml(entry.content)}</span>
-      <span class="ai-plan-duration">${entry.duration_min}分</span>
+      <span class="ai-plan-duration">${entry.duration_min}${t("durationShort")}</span>
       ${parallelInfo}
     `;
     container.appendChild(row);
@@ -1127,10 +1533,10 @@ async function applyAIPlan() {
       schedule: state.pendingSchedule,
     }),
   });
-  if (!res.ok) { showToast("应用失败", true); return; }
+  if (!res.ok) { showToast(t("toastAIPlanFailed"), true); return; }
   closeAIPlanModal();
   await Promise.all([refreshAll(), loadDatesWithItems()]);
-  showToast("AI 规划已应用");
+  showToast(t("toastAIPlanApplied"));
 }
 
 /* ── Drag & Drop (unscheduled only) ────────────────────────────────── */
@@ -1173,7 +1579,7 @@ function setupTimelineDrop() {
       body: JSON.stringify({ start_time: minutesToTime(snapped) }),
     });
     await loadItems();
-    showToast(`已排期到 ${minutesToTime(snapped)}`);
+    showToast(t("toastDropScheduled", { time: minutesToTime(snapped) }));
   });
 }
 
@@ -1308,7 +1714,7 @@ function createWordDetector(word, onDetected) {
     active = false;
     if (monitorId) { cancelAnimationFrame(monitorId); monitorId = null; }
     if (recorder && recorder.state !== "inactive") recorder.stop();
-    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    if (stream) { stream.getTracks().forEach(tk => tk.stop()); stream = null; }
     if (audioCtx) { audioCtx.close(); audioCtx = null; }
     clearTimeout(silTimer); silTimer = null;
     speaking = false; checkPending = false;
@@ -1357,7 +1763,7 @@ async function startWakeListening() {
     startLevelMeter();
     updateWakeUI(true);
   } catch (e) {
-    showToast(`唤醒监听启动失败：${e.message}`, true);
+    showToast(t("toastWakeFailed", { msg: e.message }), true);
     wakeDetector = null;
     updateWakeUI(false);
   }
@@ -1370,10 +1776,10 @@ function stopWakeListening() {
 }
 
 async function onWakeDetected() {
-  showToast(`已唤醒，说完说「${END_WORD}」结束`);
+  showToast(t("toastWakeDetected", { word: END_WORD }));
   setMicState("recording");
   document.getElementById("transcript-preview").textContent = "";
-  document.getElementById("wake-word-label").textContent = `录音中，说「${END_WORD}」结束…`;
+  document.getElementById("wake-word-label").textContent = t("wakeLabelRecording", { word: END_WORD });
 
   const deviceId    = document.getElementById("mic-select").value;
   const constraints = deviceId ? { audio: { deviceId: { exact: deviceId } } } : { audio: true };
@@ -1417,26 +1823,29 @@ async function onWakeDetected() {
 function updateWakeUI(active) {
   const btn = document.getElementById("wake-btn");
   if (!btn) return;
-  btn.textContent = active ? "🔴 关闭唤醒" : "🎧 开启唤醒";
+  btn.textContent = active ? t("wakeBtnActive") : t("wakeBtn");
   btn.classList.toggle("wake-active", active);
-  if (!active) document.getElementById("wake-word-label").textContent = "";
-  else if (!state.isRecording) document.getElementById("wake-word-label").textContent = `监听中「${WAKE_WORD}」…`;
+  if (!active) {
+    document.getElementById("wake-word-label").textContent = "";
+  } else if (!state.isRecording) {
+    document.getElementById("wake-word-label").textContent = t("wakeLabelListening", { word: WAKE_WORD });
+  }
 }
 
 async function checkMicPermission() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
+    stream.getTracks().forEach(tk => tk.stop());
     return true;
   } catch (err) {
     const statusEl = document.getElementById("voice-status");
     const btn      = document.getElementById("mic-btn");
     if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
-      statusEl.innerHTML = '麦克风权限被拒绝。请在浏览器地址栏点击 🔒 图标允许麦克风，或前往<br><b>系统设置 → 隐私与安全 → 麦克风</b>，开启浏览器权限后刷新页面。';
+      statusEl.innerHTML = t("micPermDenied");
     } else if (err.name === "NotFoundError") {
-      statusEl.textContent = "未检测到麦克风设备";
+      statusEl.textContent = t("micNotFound");
     } else {
-      statusEl.textContent = `麦克风初始化失败：${err.message}`;
+      statusEl.textContent = t("micInitFailed", { msg: err.message });
     }
     statusEl.style.color = "var(--danger)";
     btn.disabled = true;
@@ -1453,15 +1862,15 @@ async function populateMicDevices() {
     mics.forEach((d, i) => {
       const opt = document.createElement("option");
       opt.value = d.deviceId;
-      opt.textContent = d.label || `麦克风 ${i + 1}`;
+      opt.textContent = d.label || t("micDeviceDefault", { n: i + 1 });
       if (d.label.toLowerCase().includes("built-in") || d.label.includes("内置") || d.label.includes("MacBook")) {
         opt.selected = true;
       }
       sel.appendChild(opt);
     });
-    if (!mics.length) sel.innerHTML = "<option>未检测到麦克风</option>";
+    if (!mics.length) sel.innerHTML = `<option>${t("micDeviceNone")}</option>`;
   } catch (e) {
-    sel.innerHTML = "<option>无法获取设备列表</option>";
+    sel.innerHTML = `<option>${t("micDeviceListFailed")}</option>`;
   }
 }
 
@@ -1487,13 +1896,13 @@ async function startLevelMeter() {
     }
     tick();
   } catch (e) {
-    showToast(`无法打开该设备：${e.message}`, true);
+    showToast(t("toastDeviceError", { msg: e.message }), true);
   }
 }
 
 function stopLevelMeter() {
   if (levelAnimId) { cancelAnimationFrame(levelAnimId); levelAnimId = null; }
-  if (levelStream) { levelStream.getTracks().forEach(t => t.stop()); levelStream = null; }
+  if (levelStream) { levelStream.getTracks().forEach(tk => tk.stop()); levelStream = null; }
   const bar = document.getElementById("mic-level-bar");
   if (bar) bar.style.width = "0%";
 }
@@ -1511,18 +1920,16 @@ function setMicState(s) {
 
   if (s === "recording") {
     statusEl.className   = "recording";
-    statusEl.textContent = state.isReorderMode ? "🎙️ 请说出排序指令…" : "🎙️ 录音中… 松开按钮即可处理";
+    statusEl.textContent = state.isReorderMode ? t("statusRecordingReorder") : t("statusRecording");
   } else if (s === "transcribing") {
     statusEl.className   = "processing";
-    statusEl.textContent = "📝 本地转录中…";
+    statusEl.textContent = t("statusTranscribing");
   } else if (s === "processing") {
     statusEl.className   = "processing";
-    statusEl.textContent = "⏳ Gemini 整理中…";
+    statusEl.textContent = t("statusProcessing");
   } else {
     statusEl.className   = "";
-    statusEl.textContent = state.isReorderMode
-      ? "排序模式：按住麦克风说出排序指令"
-      : "按住麦克风按钮说出工作事项";
+    statusEl.textContent = state.isReorderMode ? t("statusIdleReorder") : t("statusIdle");
   }
 }
 
@@ -1539,7 +1946,7 @@ async function startRecording() {
     setMicState("recording");
     document.getElementById("transcript-preview").textContent = "";
   } catch (err) {
-    showToast(`无法打开麦克风：${err.message}`, true);
+    showToast(t("toastMicError", { msg: err.message }), true);
   }
 }
 
@@ -1549,7 +1956,7 @@ async function stopRecording() {
   await new Promise(resolve => {
     mediaRecorder.onstop = resolve;
     mediaRecorder.stop();
-    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    mediaRecorder.stream.getTracks().forEach(tk => tk.stop());
   });
 
   const mimeType = mediaRecorder.mimeType || "audio/webm";
@@ -1557,11 +1964,10 @@ async function stopRecording() {
 
   if (blob.size < 1000) {
     setMicState("idle");
-    showToast("录音太短，请重试", true);
+    showToast(t("toastShortRecording"), true);
     return;
   }
 
-  // Step 1: local transcription
   setMicState("transcribing");
   let transcript = "";
   try {
@@ -1570,24 +1976,23 @@ async function stopRecording() {
     form.append("mime_type", mimeType);
     const res  = await fetch("/api/voice/transcribe", { method: "POST", body: form });
     const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || "转录失败");
+    if (!res.ok || data.error) throw new Error(data.error || t("errAIProcess"));
     transcript = data.transcript;
     const el   = document.getElementById("transcript-preview");
     el.style.color = "";
     el.textContent = transcript ? `"${transcript}"` : "";
   } catch (err) {
     setMicState("idle");
-    showError(`转录失败：${err.message}`);
+    showError(t("errTranscribe", { msg: err.message }));
     return;
   }
 
   if (!transcript) {
     setMicState("idle");
-    showToast("未识别到语音内容", true);
+    showToast(t("toastNoSpeech"), true);
     return;
   }
 
-  // Step 2: Gemini text processing
   setMicState("processing");
   try {
     if (state.isReorderMode) {
@@ -1596,7 +2001,7 @@ async function stopRecording() {
       await processAddCommand(transcript);
     }
   } catch (err) {
-    showError(`错误：${err.message}`);
+    showError(t("errGeneral", { msg: err.message }));
   } finally {
     setMicState("idle");
   }
@@ -1620,7 +2025,7 @@ function setupManualInput() {
       // error already shown by processAddCommand
     } finally {
       btn.disabled = false;
-      btn.textContent = "添加";
+      btn.textContent = t("addBtn");
     }
   }
 
@@ -1628,7 +2033,6 @@ function setupManualInput() {
   input.addEventListener("keydown", e => {
     if (e.key === "Enter" && e.shiftKey) { e.preventDefault(); submit(); }
   });
-  // Auto-grow textarea
   input.addEventListener("input", () => {
     input.style.height = "auto";
     input.style.height = input.scrollHeight + "px";
@@ -1639,42 +2043,43 @@ async function processAddCommand(transcript) {
   const res  = await fetch("/api/voice/process", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ transcript, date: state.selectedDate }),
+    body: JSON.stringify({ transcript, date: state.selectedDate, lang: getCurrentLang() }),
   });
   const data = await res.json();
   if (!res.ok || data.error) {
-    showError(`错误：${data.error || "AI 处理失败"}`);
-    throw new Error(data.error || "AI 处理失败");
+    showError(t("errGeneral", { msg: data.error || t("errAIProcess") }));
+    throw new Error(data.error || t("errAIProcess"));
   }
-  if (!data.items || !data.items.length) { showToast("未识别到工作事项"); return; }
+  if (!data.items || !data.items.length) { showToast(t("toastNoItems")); return; }
   await addItems(data.items);
 
   const item     = data.items[0];
   const taskDate = item.date || state.selectedDate;
   if (taskDate !== state.selectedDate) {
-    showToast(`已添加到 ${friendlyDate(taskDate)}`);
+    showToast(t("toastAddedTo", { date: friendlyDate(taskDate) }));
   } else {
-    showToast("已添加工作事项");
+    showToast(t("toastAdded"));
   }
 }
 
 async function processReorderCommand(transcript) {
-  if (!state.items.length) { showToast("当前没有可排序的事项", true); return; }
+  if (!state.items.length) { showToast(t("toastNoReorder"), true); return; }
   const res  = await fetch("/api/voice/reorder", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       command: transcript,
       items: state.items.map(i => ({ id: i.id, content: i.content })),
+      lang: getCurrentLang(),
     }),
   });
   const data = await res.json();
   if (!res.ok || data.error) {
-    showError(`错误：${data.error || "排序失败"}`);
-    throw new Error(data.error || "排序失败");
+    showError(t("errGeneral", { msg: data.error || t("errReorder") }));
+    throw new Error(data.error || t("errReorder"));
   }
   await saveReorder(data.items);
-  showToast("排序已更新");
+  showToast(t("toastReordered"));
 }
 
 /* ── Wake word settings panel ──────────────────────────────────────── */
@@ -1690,14 +2095,14 @@ async function loadSampleState() {
   label.textContent = `${data.count} / ${SAMPLE_TARGET}`;
   const btn   = document.getElementById("sample-record-btn");
   if (data.count >= SAMPLE_TARGET) {
-    btn.textContent = "样本已足够（可继续添加）";
+    btn.textContent = t("sampleEnough");
     document.getElementById("sample-status").textContent =
-      `已启用声纹检测，阈值 ${data.threshold?.toFixed(2) ?? "—"}`;
+      t("sampleEnabled", { val: data.threshold?.toFixed(2) ?? "—" });
     document.getElementById("sample-status").style.color = "var(--accent)";
   } else {
-    btn.textContent = "按住录制样本";
+    btn.textContent = t("sampleRecordBtn");
     document.getElementById("sample-status").textContent =
-      `还需录制 ${SAMPLE_TARGET - data.count} 个样本`;
+      t("sampleNeeded", { n: SAMPLE_TARGET - data.count });
     document.getElementById("sample-status").style.color = "";
   }
 }
@@ -1734,10 +2139,10 @@ function setupSettingsPanel() {
   recordBtn.addEventListener("touchend",   e => { e.preventDefault(); stopSampleRecording(); }, { passive: false });
 
   document.getElementById("sample-clear-btn").addEventListener("click", async () => {
-    if (!confirm("确认清除所有唤醒词样本？")) return;
+    if (!confirm(t("confirmClearSamples"))) return;
     await fetch("/api/wake/samples", { method: "DELETE" });
     await loadSampleState();
-    showToast("样本已清除");
+    showToast(t("toastSampleCleared"));
   });
 }
 
@@ -1752,11 +2157,11 @@ async function startSampleRecording() {
     sampleRecorder.ondataavailable = e => { if (e.data.size > 0) sampleChunks.push(e.data); };
     sampleRecorder.start();
     document.getElementById("sample-record-btn").classList.add("recording");
-    document.getElementById("sample-record-btn").textContent = "🔴 录制中…";
-    document.getElementById("sample-status").textContent     = "请说「志翔」…";
+    document.getElementById("sample-record-btn").textContent = t("sampleRecording");
+    document.getElementById("sample-status").textContent     = t("sampleSpeakPrompt");
     document.getElementById("sample-status").style.color     = "var(--danger)";
   } catch (e) {
-    showToast(`无法录制：${e.message}`, true);
+    showToast(t("toastMicError", { msg: e.message }), true);
   }
 }
 
@@ -1769,20 +2174,20 @@ async function stopSampleRecording() {
   await new Promise(resolve => {
     sampleRecorder.onstop = resolve;
     sampleRecorder.stop();
-    sampleRecorder.stream.getTracks().forEach(t => t.stop());
+    sampleRecorder.stream.getTracks().forEach(tk => tk.stop());
   });
   sampleRecorder = null;
 
   const mimeType = "audio/webm";
   const blob     = new Blob(sampleChunks, { type: mimeType });
   if (blob.size < 500) {
-    document.getElementById("sample-status").textContent = "录音太短，请重试";
+    document.getElementById("sample-status").textContent = t("sampleTooShort");
     btn.disabled    = false;
-    btn.textContent = "按住录制样本";
+    btn.textContent = t("sampleRecordBtn");
     return;
   }
 
-  document.getElementById("sample-status").textContent = "保存中…";
+  document.getElementById("sample-status").textContent = t("sampleSaving");
   const form = new FormData();
   form.append("audio", blob, "sample.webm");
   form.append("mime_type", mimeType);
@@ -1790,7 +2195,7 @@ async function stopSampleRecording() {
   const data = await res.json();
   btn.disabled = false;
   if (data.error) {
-    document.getElementById("sample-status").textContent = `错误：${data.error}`;
+    document.getElementById("sample-status").textContent = t("sampleError", { msg: data.error });
   } else {
     await loadSampleState();
   }
@@ -1800,18 +2205,15 @@ async function stopSampleRecording() {
 async function loadLLMSettings() {
   const { provider } = await (await fetch("/api/settings/llm", { cache: "no-store" })).json();
 
-  // Highlight active provider button
   document.getElementById("llm-btn-gemini").classList.toggle("active", provider === "gemini");
   document.getElementById("llm-btn-deepseek").classList.toggle("active", provider === "deepseek");
 
-  // Show/hide key sections
   document.getElementById("gemini-key-section").classList.toggle("hidden", provider !== "gemini");
   document.getElementById("deepseek-key-section").classList.toggle("hidden", provider !== "deepseek");
 
   await loadKeySection("gemini",   "/api/settings/apikey");
   await loadKeySection("deepseek", "/api/settings/deepseek_apikey");
 
-  // Provider switch buttons
   for (const p of ["gemini", "deepseek"]) {
     const btn = document.getElementById(`llm-btn-${p}`);
     btn.replaceWith(btn.cloneNode(true));
@@ -1837,7 +2239,6 @@ async function loadKeySection(provider, endpoint) {
   formEl.classList.toggle("hidden", data.configured);
   msgEl.textContent = "";
 
-  // Re-bind buttons
   const deleteBtn = document.getElementById(`${provider}-delete-btn`);
   const saveBtn   = document.getElementById(`${provider}-save-btn`);
   const inputEl   = document.getElementById(`${provider}-input`);
@@ -1845,7 +2246,7 @@ async function loadKeySection(provider, endpoint) {
   saveBtn.replaceWith(saveBtn.cloneNode(true));
 
   document.getElementById(`${provider}-delete-btn`).addEventListener("click", async () => {
-    if (!confirm("确定要删除 API Key 吗？")) return;
+    if (!confirm(t("confirmDeleteKey"))) return;
     await fetch(endpoint, { method: "DELETE" });
     await loadKeySection(provider, endpoint);
   });
@@ -1861,7 +2262,7 @@ async function loadKeySection(provider, endpoint) {
     const d   = await r.json();
     const msg = document.getElementById(`${provider}-msg`);
     if (!r.ok) {
-      msg.textContent = d.error || "保存失败";
+      msg.textContent = d.error || t("toastSaveFailed");
       msg.style.color = "var(--danger)";
     } else {
       document.getElementById(`${provider}-input`).value = "";
@@ -1878,7 +2279,7 @@ function setupModeToggle() {
   const btn = document.getElementById("mode-btn");
   btn.addEventListener("click", () => {
     state.isReorderMode = !state.isReorderMode;
-    btn.textContent = state.isReorderMode ? "返回添加模式" : "排序模式";
+    btn.textContent = state.isReorderMode ? t("modeAddBtn") : t("modeSortBtn");
     btn.classList.toggle("reorder-active", state.isReorderMode);
     setMicState("idle");
     document.getElementById("transcript-preview").textContent = "";
@@ -1916,12 +2317,15 @@ async function init() {
   setupModeToggle();
   setupMicButton();
   setupThemeToggle();
+  setupLangToggle();
   setupExport();
   setupSettingsPanel();
   setupAIPlan();
   setupPoolToggle();
   setupTimelineDrop();
   setupManualInput();
+
+  applyLocale();
 
   const micOk = await checkMicPermission();
   if (micOk) {
@@ -1948,19 +2352,19 @@ async function init() {
       const res = await fetch("/api/update", { method: "POST" });
       const data = await res.json();
       if (!data.success) {
-        alert(`更新失败：${data.error || data.output}`);
+        alert(t("updateFailed", { msg: data.error || data.output }));
         return;
       }
       const msg = data.updated
-        ? `已更新！\n本地版本：v${data.local_version}\n最新版本：v${data.remote_version}\n\n即将刷新页面…`
-        : `已是最新版本 v${data.remote_version}`;
+        ? t("updateSuccess", { local: data.local_version, remote: data.remote_version })
+        : t("updateUpToDate", { version: data.remote_version });
       alert(msg);
       if (data.updated) location.reload();
     } catch (e) {
-      alert("更新请求失败：" + e.message);
+      alert(t("updateRequestFailed", { msg: e.message }));
     } finally {
       btn.disabled = false;
-      btn.textContent = "检测最新版本";
+      btn.textContent = t("updateBtn");
     }
   });
 
@@ -1968,7 +2372,6 @@ async function init() {
   await loadItems();
   await loadPool();
 
-  // Redraw now-line and check for overdue tasks every minute
   setInterval(() => {
     if (state.selectedDate === formatDate(new Date())) {
       renderTimeline(state.items);
@@ -1995,7 +2398,7 @@ async function autoExtendOverdue() {
     })
   ));
   await loadItems();
-  showToast(`${overdue.length} 个任务已自动延长 15 分钟`);
+  showToast(t("autoExtended", { n: overdue.length }));
 }
 
 document.addEventListener("DOMContentLoaded", init);

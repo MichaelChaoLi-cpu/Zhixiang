@@ -667,19 +667,30 @@ def pool_parse_time():
     if not text:
         return jsonify({"date": context_date, "start_time": None})
 
+    lang = data.get("lang", "zh")
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     now_str = now.strftime("%H:%M")
-    weekday_cn = ["一","二","三","四","五","六","日"][now.weekday()]
-
-    prompt = (
-        f"今天是 {today_str}，星期{weekday_cn}，当前时刻是 {now_str}。当前查看日期是 {context_date}。\n"
-        "用户输入一段描述排期时间的文字，请解析为 JSON：\n"
-        "- date：日期，格式 \"YYYY-MM-DD\"；如未提及具体日期则使用当前查看日期\n"
-        f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」解析为 {now_str}；如未提及则为 null\n"
-        "只返回 JSON，不添加解释：{\"date\": \"YYYY-MM-DD\", \"start_time\": \"HH:MM 或 null\"}\n\n"
-        f"用户输入：{text}"
-    )
+    if lang == "en":
+        weekday_name = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][now.weekday()]
+        prompt = (
+            f"Today is {today_str}, {weekday_name}, current time is {now_str}. The currently viewed date is {context_date}.\n"
+            "The user enters text describing a scheduled time. Parse it as JSON:\n"
+            "- date: date in \"YYYY-MM-DD\" format; use the currently viewed date if no specific date is mentioned\n"
+            f"- start_time: start time in \"HH:MM\" format; \"now\", \"immediately\" → {now_str}; null if not mentioned\n"
+            "Return only JSON, no explanations: {\"date\": \"YYYY-MM-DD\", \"start_time\": \"HH:MM or null\"}\n\n"
+            f"User input: {text}"
+        )
+    else:
+        weekday_name = ["一","二","三","四","五","六","日"][now.weekday()]
+        prompt = (
+            f"今天是 {today_str}，星期{weekday_name}，当前时刻是 {now_str}。当前查看日期是 {context_date}。\n"
+            "用户输入一段描述排期时间的文字，请解析为 JSON：\n"
+            "- date：日期，格式 \"YYYY-MM-DD\"；如未提及具体日期则使用当前查看日期\n"
+            f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」解析为 {now_str}；如未提及则为 null\n"
+            "只返回 JSON，不添加解释：{\"date\": \"YYYY-MM-DD\", \"start_time\": \"HH:MM 或 null\"}\n\n"
+            f"用户输入：{text}"
+        )
 
     try:
         result = extract_json(call_llm(prompt))
@@ -727,12 +738,41 @@ def schedule_generate():
         })
     # Don't include pool items automatically — they remain in pool unless scheduled
 
+    lang = data.get("lang", "zh")
+
     if not task_list:
-        return jsonify({"error": "当天没有工作事项"}), 400
+        err_msg = "No tasks for this date" if lang == "en" else "当天没有工作事项"
+        return jsonify({"error": err_msg}), 400
 
     tasks_json = json.dumps(task_list, ensure_ascii=False, indent=2)
 
-    prompt = f"""你是一个专业日程规划师。给定以下工作任务列表，为 {date} 创建从 {work_start} 到 {work_end} 的日程安排。
+    if lang == "en":
+        prompt = f"""You are a professional schedule planner. Given the following task list, create a schedule for {date} from {work_start} to {work_end}.
+
+Rules:
+1. Schedule a 1-hour lunch break at 12:00 (content="Lunch break", id=null, duration_min=60)
+2. Identify which tasks must be sequential and which can be parallel (use parallel_group integer to mark same-group parallel tasks; sequential tasks have parallel_group=null)
+3. Parallel tasks must have a clear reason (parallel_reason, in English)
+4. Fit all tasks within working hours
+5. start_time format is "HH:MM"
+6. All text fields (content, parallel_reason) must be in English
+
+Tasks:
+{tasks_json}
+
+Return only a JSON array, each element:
+{{
+  "id": <original id or null>,
+  "content": "<task name in English>",
+  "start_time": "HH:MM",
+  "duration_min": <minutes>,
+  "parallel_group": <integer or null>,
+  "parallel_reason": "<reason in English or null>"
+}}
+
+No explanations, return the JSON array directly."""
+    else:
+        prompt = f"""你是一个专业日程规划师。给定以下工作任务列表，为 {date} 创建从 {work_start} 到 {work_end} 的日程安排。
 
 规则：
 1. 在 12:00 安排 1 小时午休（content="午休", id=null, duration_min=60）
@@ -900,25 +940,43 @@ def voice_process():
     if not transcript:
         return jsonify({"error": "transcript required"}), 400
 
+    lang       = data.get("lang", "zh")
     now        = datetime.now()
     today_str  = now.strftime("%Y-%m-%d")
     now_str    = now.strftime("%H:%M")
-    weekday_cn = ["一","二","三","四","五","六","日"][now.weekday()]
 
-    prompt = (
-        f"今天是 {today_str}，星期{weekday_cn}，当前时刻是 {now_str}。\n"
-        "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期或时间信息。\n"
-        "请解析为以下 JSON 对象，字段说明：\n"
-        "- content：简洁的任务名（5-15字）\n"
-        "- description：任务的详细说明（如有则填写，否则为空字符串）\n"
-        "- duration_min：任务时长（分钟整数），如未提及则默认 60\n"
-        f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」「立刻」解析为 {now_str}；如未提及则为 null\n"
-        "- date：任务日期，格式 \"YYYY-MM-DD\"，「明天」「后天」「下周X」「X月X日」等需计算；如未提及日期则为 null\n\n"
-        "忽略「完毕」「结束」等控制词。只返回 JSON，不添加任何解释：\n"
-        "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, "
-        "\"start_time\": null, \"date\": null}\n\n"
-        f"转录文本：{transcript}"
-    )
+    if lang == "en":
+        weekday_name = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][now.weekday()]
+        prompt = (
+            f"Today is {today_str}, {weekday_name}, current time is {now_str}.\n"
+            "You are a work planning assistant. The user describes a work task in one sentence, which may include date or time information.\n"
+            "Parse it into the following JSON object:\n"
+            "- content: concise task name (5-15 words, in English)\n"
+            "- description: detailed description (if provided, otherwise empty string)\n"
+            "- duration_min: task duration in minutes (integer), default 60 if not mentioned\n"
+            f"- start_time: start time in \"HH:MM\" format; \"now\", \"immediately\", \"right away\" → {now_str}; null if not mentioned\n"
+            "- date: task date in \"YYYY-MM-DD\" format; calculate \"tomorrow\", \"next Monday\", \"June 5th\" etc.; null if not mentioned\n\n"
+            "Ignore control words like \"done\", \"end\", \"finish\". Return only JSON, no explanations:\n"
+            "{\"content\": \"task name\", \"description\": \"details\", \"duration_min\": 60, "
+            "\"start_time\": null, \"date\": null}\n\n"
+            f"Transcript: {transcript}"
+        )
+    else:
+        weekday_name = ["一","二","三","四","五","六","日"][now.weekday()]
+        prompt = (
+            f"今天是 {today_str}，星期{weekday_name}，当前时刻是 {now_str}。\n"
+            "你是一个工作计划助手。用户用一句话描述一个工作任务，可能包含日期或时间信息。\n"
+            "请解析为以下 JSON 对象，字段说明：\n"
+            "- content：简洁的任务名（5-15字）\n"
+            "- description：任务的详细说明（如有则填写，否则为空字符串）\n"
+            "- duration_min：任务时长（分钟整数），如未提及则默认 60\n"
+            f"- start_time：开始时间，格式 \"HH:MM\"；「现在」「马上」「立刻」解析为 {now_str}；如未提及则为 null\n"
+            "- date：任务日期，格式 \"YYYY-MM-DD\"，「明天」「后天」「下周X」「X月X日」等需计算；如未提及日期则为 null\n\n"
+            "忽略「完毕」「结束」等控制词。只返回 JSON，不添加任何解释：\n"
+            "{\"content\": \"任务名\", \"description\": \"说明\", \"duration_min\": 60, "
+            "\"start_time\": null, \"date\": null}\n\n"
+            f"转录文本：{transcript}"
+        )
 
     try:
         item = extract_json(call_llm(prompt))
@@ -955,16 +1013,26 @@ def voice_reorder():
     if not command or not current_items:
         return jsonify({"error": "command and items required"}), 400
 
+    lang = data.get("lang", "zh")
     items_text = "\n".join(
         f"{i+1}. [id={item['id']}] {item['content']}"
         for i, item in enumerate(current_items)
     )
-    prompt = (
-        "你是一个工作计划助手。根据用户的指令，重新排序工作事项列表。\n"
-        "只返回 JSON 数组，每个元素是 {\"id\": <原始id>, \"content\": <内容>}，不得增减条目，不添加解释。\n"
-        f"当前列表：\n{items_text}\n\n"
-        f"用户指令：{command}"
-    )
+    if lang == "en":
+        prompt = (
+            "You are a work planning assistant. Reorder the work items list according to the user's instruction.\n"
+            "Return only a JSON array, each element is {\"id\": <original_id>, \"content\": <content>}. "
+            "Do not add or remove items, no explanations.\n"
+            f"Current list:\n{items_text}\n\n"
+            f"User instruction: {command}"
+        )
+    else:
+        prompt = (
+            "你是一个工作计划助手。根据用户的指令，重新排序工作事项列表。\n"
+            "只返回 JSON 数组，每个元素是 {\"id\": <原始id>, \"content\": <内容>}，不得增减条目，不添加解释。\n"
+            f"当前列表：\n{items_text}\n\n"
+            f"用户指令：{command}"
+        )
 
     try:
         reordered = extract_json(call_llm(prompt))
