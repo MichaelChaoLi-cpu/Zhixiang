@@ -17,7 +17,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-__version__      = "0.0.7"
+__version__      = "0.0.8"
 
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")

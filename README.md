@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.7-blue)
+![Version](https://img.shields.io/badge/version-0.0.8-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
@@ -158,6 +158,11 @@ Zhixiang/
 ---
 
 ## 版本历史
+
+### v0.0.8 (2026-05)
+- 任务池改为全局共享，切换日期后任务池内容不变
+- 新增 `GET /api/items/unscheduled`，跨所有日期聚合未排期任务
+- 切换日期时自动展开任务池面板，排期对话框提示目标日期
 
 ### v0.0.7 (2026-05)
 - 跨平台支持：新增 Windows（`init.bat` / `start.bat`），`init.sh` 兼容 Linux（apt / dnf / pacman）
