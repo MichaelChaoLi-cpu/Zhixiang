@@ -3,7 +3,9 @@
 ![Version](https://img.shields.io/badge/version-0.0.7-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
+![macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
+![Linux](https://img.shields.io/badge/platform-Linux-lightgrey?logo=linux)
+![Windows](https://img.shields.io/badge/platform-Windows-lightgrey?logo=windows)
 ![Stars](https://img.shields.io/github/stars/MichaelChaoLi-cpu/Zhixiang?style=social)
 
 个人语音日程管理助手。用自然语言或语音添加任务，在时间轴上拖拽排期，由 AI 智能规划全天。
@@ -21,22 +23,43 @@
 
 ## 快速开始
 
-**前提：Python 3.12+（推荐）**
+### macOS
 
-**macOS / Linux**
 ```bash
 git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
 bash Zhixiang/init.sh
-source ~/.zshrc   # 或 source ~/.bashrc
+source ~/.zshrc
+Zhixiang
 ```
-之后在任意终端输入 `Zhixiang` 即可启动，浏览器自动打开 `http://localhost:4096`。
 
-**Windows**
+> `init.sh` 会自动安装 Python 3.12（通过 Homebrew）、创建虚拟环境、注册 `Zhixiang` 命令。
+
+### Linux
+
+```bash
+git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
+bash Zhixiang/init.sh
+source ~/.bashrc   # 或 source ~/.zshrc
+Zhixiang
 ```
-1. 安装 Python 3.12（勾选 "Add Python to PATH"）
-2. 双击 init.bat
-3. 双击 start.bat
+
+> `init.sh` 会自动通过 apt / dnf / pacman 安装 Python 3.12（需要 sudo 权限）。
+
+### Windows
+
+```cmd
+git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
+cd Zhixiang
+init.bat
 ```
+
+之后双击 `start.bat` 启动应用，或在 cmd 中运行 `start.bat`。
+
+> 前提：已安装 [Git for Windows](https://git-scm.com/download/win) 和 [Python 3.12](https://www.python.org/downloads/)（安装时勾选 **Add Python to PATH**）。
+
+浏览器会自动打开 `http://localhost:4096`（端口被占用时自动 +1）。
+
+---
 
 **首次使用**：点击右上角 ⚙️ 设置，选择 LLM 并填入对应 API Key：
 - Gemini：[Google AI Studio 免费获取](https://aistudio.google.com/app/apikey)
