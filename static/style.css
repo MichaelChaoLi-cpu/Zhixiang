@@ -497,6 +497,20 @@ body {
   opacity: .6;
 }
 
+.task-block.suspended {
+  border-left-color: var(--text-dim);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface),
+    var(--surface) 4px,
+    var(--surface2) 4px,
+    var(--surface2) 8px
+  );
+  opacity: .55;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* Parallel layout */
 .task-block.parallel-left  { right: 52%; }
 .task-block.parallel-right { left: 52%; }

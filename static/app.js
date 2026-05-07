@@ -236,12 +236,38 @@ function renderTimeline(items) {
     }
   }
 
-  // Separate scheduled vs unscheduled
+  // Separate scheduled vs unscheduled vs suspended
   const scheduled   = items.filter(it => it.start_time && it.status !== "suspended");
   const unscheduled = items.filter(it => !it.start_time && it.status !== "suspended");
+  const suspended   = items.filter(it => it.start_time && it.status === "suspended");
 
   // Auto-detect overlapping tasks and assign columns
   const colMap = assignColumns(scheduled);
+
+  // Render suspended (elapsed) records — non-interactive, dimmed
+  suspended.forEach(item => {
+    const startMins = timeToMinutes(item.start_time);
+    if (startMins == null) return;
+    const top    = (startMins - WORK_START) * PX_PER_MIN;
+    const height = Math.max((item.duration_min || 1) * PX_PER_MIN, 12);
+
+    const block = document.createElement("div");
+    block.className = "task-block suspended";
+    block.style.top    = top + "px";
+    block.style.height = height + "px";
+
+    const endTime = minutesToTime(startMins + (item.duration_min || 1));
+    block.innerHTML = `
+      <div class="task-block-title">
+        <span class="task-title-text">⏸ ${escapeHtml(item.content)}</span>
+      </div>
+      <div class="task-block-meta">
+        <span class="task-time-label">${item.start_time} – ${endTime}</span>
+        <span class="task-duration-badge">${item.duration_min || 1}分钟</span>
+      </div>
+    `;
+    tracks.appendChild(block);
+  });
 
   // Render scheduled blocks
   scheduled.forEach(item => {

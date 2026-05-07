@@ -430,29 +430,51 @@ def suspend_item(item_id):
         return jsonify({"error": "item not found"}), 404
 
     item = dict(item)
-    # Move to task pool
-    conn.execute(
-        "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
-        (item["content"], item["duration_min"] or 60, item["date"])
-    )
+    original_duration = item["duration_min"] or 60
 
-    # Push subsequent items back if this item has a start_time
-    if item.get("start_time"):
-        duration = item["duration_min"] or 60
-        # All items on same date with start_time > this item's start_time
-        later = conn.execute(
-            """SELECT id, start_time FROM work_items
-               WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL""",
-            (item["date"], item["start_time"], item_id)
-        ).fetchall()
-        for row in later:
-            mins = time_to_minutes(row["start_time"]) - duration
-            conn.execute(
-                "UPDATE work_items SET start_time=? WHERE id=?",
-                (minutes_to_time(mins), row["id"])
-            )
+    # Calculate elapsed time if task has been started
+    elapsed = 0
+    remaining_duration = original_duration
+    if item.get("start_time") and item["status"] == "pending":
+        now = datetime.now()
+        now_mins = now.hour * 60 + now.minute
+        start_mins = time_to_minutes(item["start_time"])
+        elapsed = max(0, now_mins - start_mins)
+        elapsed = min(elapsed, original_duration)
+        remaining_duration = original_duration - elapsed
 
-    conn.execute("DELETE FROM work_items WHERE id=?", (item_id,))
+    if item.get("start_time") and elapsed > 0:
+        # Keep the elapsed portion as a suspended record on the timeline
+        conn.execute(
+            "UPDATE work_items SET status='suspended', duration_min=? WHERE id=?",
+            (elapsed, item_id)
+        )
+        # Add remaining task back to pool
+        conn.execute(
+            "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
+            (item["content"], remaining_duration, item["date"])
+        )
+        # Shift subsequent items forward by remaining_duration only
+        if remaining_duration > 0:
+            later = conn.execute(
+                """SELECT id, start_time FROM work_items
+                   WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL""",
+                (item["date"], item["start_time"], item_id)
+            ).fetchall()
+            for row in later:
+                mins = time_to_minutes(row["start_time"]) - remaining_duration
+                conn.execute(
+                    "UPDATE work_items SET start_time=? WHERE id=?",
+                    (minutes_to_time(mins), row["id"])
+                )
+    else:
+        # No start_time or zero elapsed — move entirely to pool
+        conn.execute(
+            "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
+            (item["content"], original_duration, item["date"])
+        )
+        conn.execute("DELETE FROM work_items WHERE id=?", (item_id,))
+
     conn.commit()
     conn.close()
     return jsonify({"status": "ok", "moved_to_pool": True})
