@@ -1,9 +1,11 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.6-blue)
+![Version](https://img.shields.io/badge/version-0.0.7-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+![macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
+![Linux](https://img.shields.io/badge/platform-Linux-lightgrey?logo=linux)
+![Windows](https://img.shields.io/badge/platform-Windows-lightgrey?logo=windows)
 ![Stars](https://img.shields.io/github/stars/MichaelChaoLi-cpu/Zhixiang?style=social)
 
 个人语音日程管理助手。用自然语言或语音添加任务，在时间轴上拖拽排期，由 AI 智能规划全天。
@@ -21,15 +23,43 @@
 
 ## 快速开始
 
-**前提：macOS，推荐 Python 3.12**
+### macOS
 
 ```bash
 git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
-./Zhixiang/init.sh
+bash Zhixiang/init.sh
 source ~/.zshrc
+Zhixiang
 ```
 
-之后在任意终端输入 `Zhixiang` 即可启动，浏览器自动打开 `http://localhost:4096`。
+> `init.sh` 会自动安装 Python 3.12（通过 Homebrew）、创建虚拟环境、注册 `Zhixiang` 命令。
+
+### Linux
+
+```bash
+git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
+bash Zhixiang/init.sh
+source ~/.bashrc   # 或 source ~/.zshrc
+Zhixiang
+```
+
+> `init.sh` 会自动通过 apt / dnf / pacman 安装 Python 3.12（需要 sudo 权限）。
+
+### Windows
+
+```cmd
+git clone https://github.com/MichaelChaoLi-cpu/Zhixiang.git
+cd Zhixiang
+init.bat
+```
+
+之后双击 `start.bat` 启动应用，或在 cmd 中运行 `start.bat`。
+
+> 前提：已安装 [Git for Windows](https://git-scm.com/download/win) 和 [Python 3.12](https://www.python.org/downloads/)（安装时勾选 **Add Python to PATH**）。
+
+浏览器会自动打开 `http://localhost:4096`（端口被占用时自动 +1）。
+
+---
 
 **首次使用**：点击右上角 ⚙️ 设置，选择 LLM 并填入对应 API Key：
 - Gemini：[Google AI Studio 免费获取](https://aistudio.google.com/app/apikey)
@@ -52,18 +82,24 @@ source ~/.zshrc
 | 操作 | 说明 |
 |------|------|
 | 拖动任务块 | 纵向拖拽，吸附到 15 分钟整点 |
+| 双击时间标签 | 直接修改任务起始时间（如 `12:00`） |
 | 点击时长徽章 | 直接修改任务时长 |
-| 点击任务名 | 内联编辑任务名称 |
+| 双击任务名 | 内联编辑任务名称（任务池同样支持） |
+| 双击任务空白区 | 记录日志和笔记 |
+| 📌 图钉 | 锁定起始时间，禁止拖拽 / 时间编辑 / 自动推移 |
 | 并行任务 | 时间重叠自动并列显示，不堆叠 |
 | 短任务 | 不足 60 分钟悬停展开显示完整内容 |
+
+### 任务编号
+每天排期后自动分配 `T01`–`T99` 序号，编号一经分配不再改变；挂起后重新排期可获新编号。
 
 ### 任务状态
 | 操作 | 行为 |
 |------|------|
 | ✓ 完成 | 提前完成自动截断时长（精确记录实际用时） |
 | ⏸ 挂起 | 已消耗时段保留在时间轴，剩余部分移入任务池 |
-| + 延长 | 手动延长；仅推移实际被覆盖的后续任务 |
-| 自动延长 | 到期未处理，每 15 分钟自动 +15 分钟 |
+| + 延长 | 手动延长；仅推移实际被覆盖的后续任务（图钉任务不受影响） |
+| 自动延长 | 到期未处理，每 15 分钟自动 +15 分钟（图钉任务不受影响） |
 
 ### AI 功能
 - **✨ AI 规划**：一键为当天所有任务分配最优时间段，预览确认后应用
@@ -92,8 +128,10 @@ source ~/.zshrc
 ```
 Zhixiang/
 ├── app.py              # Flask 后端 + API
-├── init.sh             # 一次性初始化（建 venv、装依赖、写 alias）
-├── start.sh            # 启动脚本
+├── init.sh             # 初始化脚本（macOS / Linux）
+├── start.sh            # 启动脚本（macOS / Linux）
+├── init.bat            # 初始化脚本（Windows）
+├── start.bat           # 启动脚本（Windows）
 ├── requirement.txt     # Python 依赖
 ├── LICENSE
 ├── templates/
@@ -120,6 +158,16 @@ Zhixiang/
 ---
 
 ## 版本历史
+
+### v0.0.7 (2026-05)
+- 跨平台支持：新增 Windows（`init.bat` / `start.bat`），`init.sh` 兼容 Linux（apt / dnf / pacman）
+- 任务自动分配每日序号 T01–T99，排期后锁定，挂起重排可获新编号
+- 📌 图钉功能：锁定任务起始时间，禁止拖拽、时间编辑及自动推移
+- 双击时间标签可直接修改起始时间
+- 双击任务名称可内联编辑（时间轴与任务池均支持）
+- 双击任务空白区域可记录日志和笔记
+- 启动时自动检测被占用端口，从 4096 开始逐一 +1
+- 电脑 sleep 后重启，未完成任务自动推移到当前时间 +15 分钟（图钉任务除外）
 
 ### v0.0.6 (2026-05)
 - 未排期任务统一显示在任务池，移除时间轴底部"未排期"区域

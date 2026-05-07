@@ -17,7 +17,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-__version__      = "0.0.6"
+__version__      = "0.0.7"
 
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
@@ -158,6 +158,8 @@ def init_db():
         ("parallel_group",  "INTEGER"),
         ("parallel_reason", "TEXT"),
         ("description",     "TEXT DEFAULT ''"),
+        ("task_no",         "TEXT"),
+        ("pinned",          "INTEGER DEFAULT 0"),
     ]
     for col, col_def in migrations:
         if not _column_exists(conn, "work_items", col):
@@ -175,6 +177,44 @@ def init_db():
         )
     """)
 
+    conn.commit()
+    conn.close()
+
+
+def _assign_task_no(conn, date: str, item_id: int):
+    """Assign next available T01–T99 for the given date if item has no task_no yet."""
+    existing = conn.execute("SELECT task_no FROM work_items WHERE id=?", (item_id,)).fetchone()
+    if existing and existing["task_no"]:
+        return
+    used = {r["task_no"] for r in conn.execute(
+        "SELECT task_no FROM work_items WHERE date=? AND task_no IS NOT NULL", (date,)
+    ).fetchall()}
+    for i in range(1, 100):
+        no = f"T{i:02d}"
+        if no not in used:
+            conn.execute("UPDATE work_items SET task_no=? WHERE id=?", (no, item_id))
+            return
+
+
+def reschedule_stale_tasks():
+    """On startup, push any in-flight tasks (past start_time, still pending) to now+15min."""
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    now_mins = now.hour * 60 + now.minute
+    new_start = f"{(now_mins + 15) // 60:02d}:{(now_mins + 15) % 60:02d}"
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, start_time FROM work_items WHERE date=? AND status='pending' AND start_time IS NOT NULL AND (pinned IS NULL OR pinned=0)",
+        (today,)
+    ).fetchall()
+    for row in rows:
+        start_mins = time_to_minutes(row["start_time"])
+        if start_mins is not None and start_mins <= now_mins:
+            conn.execute(
+                "UPDATE work_items SET start_time=? WHERE id=?",
+                (new_start, row["id"])
+            )
     conn.commit()
     conn.close()
 
@@ -275,7 +315,7 @@ def get_items():
     conn = get_db()
     rows = conn.execute(
         """SELECT id, date, content, description, position, created_at,
-                  duration_min, start_time, status, parallel_group, parallel_reason
+                  duration_min, start_time, status, parallel_group, parallel_reason, task_no, pinned
            FROM work_items WHERE date=? ORDER BY start_time ASC NULLS LAST, position ASC, id ASC""",
         (date,)
     ).fetchall()
@@ -326,8 +366,11 @@ def add_items():
                VALUES (?, ?, ?, ?, ?, ?)""",
             (date, content, description, next_pos, duration_min, start_time)
         )
+        new_id = cur.lastrowid
+        if start_time:
+            _assign_task_no(conn, date, new_id)
         inserted.append({
-            "id": cur.lastrowid, "date": date, "content": content,
+            "id": new_id, "date": date, "content": content,
             "description": description, "position": next_pos,
             "duration_min": duration_min, "start_time": start_time,
             "status": "pending", "parallel_group": None, "parallel_reason": None
@@ -377,7 +420,7 @@ def update_item(item_id):
         return jsonify({"error": "item not found"}), 404
 
     fields = {}
-    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason", "date"):
+    for key in ("content", "description", "duration_min", "start_time", "status", "parallel_group", "parallel_reason", "date", "pinned"):
         if key in data:
             fields[key] = data[key]
 
@@ -388,6 +431,10 @@ def update_item(item_id):
             list(fields.values()) + [item_id]
         )
         conn.commit()
+        # Assign task_no when start_time is first set on this item
+        if "start_time" in fields and fields["start_time"] and not item["task_no"]:
+            _assign_task_no(conn, item["date"], item_id)
+            conn.commit()
 
     updated = conn.execute("SELECT * FROM work_items WHERE id=?", (item_id,)).fetchone()
     conn.close()
@@ -445,8 +492,9 @@ def suspend_item(item_id):
 
     if item.get("start_time") and elapsed > 0:
         # Keep the elapsed portion as a suspended record on the timeline
+        # Clear task_no so re-scheduling gets a fresh number
         conn.execute(
-            "UPDATE work_items SET status='suspended', duration_min=? WHERE id=?",
+            "UPDATE work_items SET status='suspended', duration_min=?, task_no=NULL WHERE id=?",
             (elapsed, item_id)
         )
         # Add remaining task back to pool
@@ -454,11 +502,12 @@ def suspend_item(item_id):
             "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
             (item["content"], remaining_duration, item["date"])
         )
-        # Shift subsequent items forward by remaining_duration only
+        # Shift subsequent items forward by remaining_duration only (skip pinned)
         if remaining_duration > 0:
             later = conn.execute(
                 """SELECT id, start_time FROM work_items
-                   WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL""",
+                   WHERE date=? AND start_time > ? AND id != ? AND start_time IS NOT NULL
+                     AND (pinned IS NULL OR pinned=0)""",
                 (item["date"], item["start_time"], item_id)
             ).fetchall()
             for row in later:
@@ -502,7 +551,7 @@ def extend_item(item_id):
         later = conn.execute(
             """SELECT id, start_time FROM work_items
                WHERE date=? AND start_time >= ? AND start_time < ? AND id != ?
-                 AND start_time IS NOT NULL""",
+                 AND start_time IS NOT NULL AND (pinned IS NULL OR pinned=0)""",
             (item["date"], minutes_to_time(old_end_mins), minutes_to_time(new_end_mins), item_id)
         ).fetchall()
         for row in later:
@@ -538,6 +587,27 @@ def delete_pool_item(pool_id):
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/pool/<int:pool_id>", methods=["PUT"])
+def update_pool_item(pool_id):
+    data = request.get_json()
+    conn = get_db()
+    item = conn.execute("SELECT * FROM task_pool WHERE id=?", (pool_id,)).fetchone()
+    if not item:
+        conn.close()
+        return jsonify({"error": "item not found"}), 404
+    fields = {}
+    for key in ("content", "duration_min"):
+        if key in data:
+            fields[key] = data[key]
+    if fields:
+        set_clause = ", ".join(f"{k}=?" for k in fields)
+        conn.execute(f"UPDATE task_pool SET {set_clause} WHERE id=?", list(fields.values()) + [pool_id])
+        conn.commit()
+    updated = conn.execute("SELECT * FROM task_pool WHERE id=?", (pool_id,)).fetchone()
+    conn.close()
+    return jsonify(dict(updated))
+
+
 @app.route("/api/pool/<int:pool_id>/schedule", methods=["POST"])
 def schedule_pool_item(pool_id):
     data = request.get_json()
@@ -565,6 +635,8 @@ def schedule_pool_item(pool_id):
     )
     new_id = cur.lastrowid
     conn.execute("DELETE FROM task_pool WHERE id=?", (pool_id,))
+    if start_time:
+        _assign_task_no(conn, date, new_id)
     conn.commit()
 
     inserted = conn.execute("SELECT * FROM work_items WHERE id=?", (new_id,)).fetchone()
@@ -1174,11 +1246,21 @@ def deepseek_apikey_delete():
 
 
 if __name__ == "__main__":
-    import threading, webbrowser
+    import socket, threading, webbrowser
     init_db()
-    port = int(os.environ.get("PORT", 4096))
-    # Open browser after server starts (only on first launch, not reloader reload)
+
+    def _find_free_port(start: int) -> int:
+        port = start
+        while True:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                if s.connect_ex(("localhost", port)) != 0:
+                    return port
+            port += 1
+
+    port = _find_free_port(int(os.environ.get("PORT", 4096)))
+    # Run once on first launch, not on reloader reload
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reschedule_stale_tasks()
         def _open():
             import time; time.sleep(1.2)
             webbrowser.open(f"http://localhost:{port}")

@@ -9,7 +9,11 @@ PYTHON="$REPO_DIR/.venv/bin/python"
 if [ ! -f "$PYTHON" ]; then
     echo "未检测到虚拟环境，正在初始化..."
     bash "$REPO_DIR/init.sh"
-    source "$HOME/.zshrc" 2>/dev/null || true
+    if [[ "$SHELL" == */zsh ]]; then
+        source "$HOME/.zshrc" 2>/dev/null || true
+    else
+        source "$HOME/.bashrc" 2>/dev/null || true
+    fi
 fi
 
 echo "启动 志翔日程 → http://localhost:4096"

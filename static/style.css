@@ -527,6 +527,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
 }
 
 .task-title-text {
@@ -1357,6 +1359,71 @@ body {
   transform: translateX(-50%) translateY(0);
 }
 #toast.error { border-color: var(--danger); color: var(--danger); }
+
+/* ── Pin button ────────────────────────────────────────────────────── */
+.btn-pin { opacity: .45; }
+.btn-pin:hover, .btn-pin-active { opacity: 1; }
+.btn-pin-active { background: var(--accent-soft) !important; }
+
+.task-pin-icon {
+  font-size: .72rem;
+  margin-left: auto;
+  opacity: .75;
+  flex-shrink: 0;
+}
+
+/* ── Task number badge ─────────────────────────────────────────────── */
+.task-no-badge {
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 4px;
+  letter-spacing: .03em;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ── Note editor ───────────────────────────────────────────────────── */
+.task-block:has(.note-editor-panel) { overflow: visible; z-index: 10; }
+.note-editor-panel {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+.note-editor-textarea {
+  width: 100%;
+  min-height: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: .75rem;
+  line-height: 1.45;
+  padding: 5px 8px;
+  resize: vertical;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.note-editor-textarea:focus { outline: none; border-color: var(--accent); }
+.note-editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.note-editor-hint {
+  font-size: .65rem;
+  color: var(--text-dim);
+  flex: 1;
+}
 
 /* ── Scrollbar ─────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }

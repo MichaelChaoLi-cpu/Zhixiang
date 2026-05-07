@@ -300,10 +300,13 @@ function renderTimeline(items) {
     const statusIcon = item.status === "completed" ? "✓ " : "";
     const descHtml = item.description
       ? `<div class="task-block-desc">${escapeHtml(item.description)}</div>` : "";
+    const taskNoHtml = item.task_no
+      ? `<span class="task-no-badge">${escapeHtml(item.task_no)}</span>` : "";
+    const pinnedHtml = item.pinned ? `<span class="task-pin-icon" title="已图钉，起始时间锁定">📌</span>` : "";
 
     block.innerHTML = `
       <div class="task-block-title">
-        <span class="task-title-text">${statusIcon}${escapeHtml(item.content)}</span>
+        ${taskNoHtml}<span class="task-title-text">${statusIcon}${escapeHtml(item.content)}</span>${pinnedHtml}
       </div>
       ${descHtml}
       <div class="task-block-meta">
@@ -316,6 +319,7 @@ function renderTimeline(items) {
         <button class="task-action-btn btn-complete" data-id="${item.id}">✓ 完成</button>
         <button class="task-action-btn btn-suspend"  data-id="${item.id}">⏸ 挂起</button>
         <button class="task-action-btn btn-extend"   data-id="${item.id}">+ 延长</button>
+        <button class="task-action-btn btn-pin ${item.pinned ? 'btn-pin-active' : ''}" data-id="${item.id}" title="${item.pinned ? '取消图钉' : '图钉锁定起始时间'}">📌</button>
         <button class="task-action-btn btn-delete"   data-id="${item.id}">✕</button>
       </div>` : `
       <div class="task-actions">
@@ -326,6 +330,8 @@ function renderTimeline(items) {
     initBlockDrag(block, item);
     initTitleEdit(block, item);
     initDurationEdit(block, item);
+    initTimeEdit(block, item);
+    initNoteEdit(block, item);
     tracks.appendChild(block);
   });
 
@@ -341,6 +347,20 @@ function renderTimeline(items) {
   });
   tracks.querySelectorAll(".btn-delete").forEach(btn => {
     btn.addEventListener("click", () => deleteItem(parseInt(btn.dataset.id)));
+  });
+  tracks.querySelectorAll(".btn-pin").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = parseInt(btn.dataset.id);
+      const item = state.items.find(it => it.id === id);
+      if (!item) return;
+      const newPinned = item.pinned ? 0 : 1;
+      await fetch(`/api/items/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: newPinned }),
+      });
+      await loadItems();
+    });
   });
 
   // Remove any stale unscheduled section
@@ -385,6 +405,7 @@ let _drag = null;
 function initBlockDrag(block, item) {
   block.addEventListener("mousedown", e => {
     if (e.target.closest("button") || e.target.closest(".task-title-text")) return;
+    if (item.pinned) return;
     e.preventDefault();
     const startMins = timeToMinutes(item.start_time);
     if (startMins == null) return;
@@ -433,10 +454,10 @@ document.addEventListener("mouseup", async () => {
 function initTitleEdit(block, item) {
   const span = block.querySelector(".task-title-text");
   if (!span) return;
-  span.title = "点击编辑任务名";
+  span.title = "双击编辑任务名";
   span.style.cursor = "text";
 
-  span.addEventListener("click", e => {
+  span.addEventListener("dblclick", e => {
     e.stopPropagation();
     if (block.querySelector(".title-input")) return;
     const input = document.createElement("input");
@@ -527,6 +548,97 @@ function initDurationEdit(block, item) {
   });
 }
 
+function initTimeEdit(block, item) {
+  if (item.status === "completed" || item.status === "suspended" || item.pinned) return;
+  const label = block.querySelector(".task-time-label");
+  if (!label) return;
+  label.title = "双击编辑开始时间";
+  label.style.cursor = "text";
+
+  label.addEventListener("dblclick", e => {
+    e.stopPropagation();
+    if (block.querySelector(".time-edit-input")) return;
+
+    const input = document.createElement("input");
+    input.type = "time";
+    input.className = "time-edit-input title-input";
+    input.value = item.start_time || "09:00";
+    label.replaceWith(input);
+    input.focus();
+
+    async function save() {
+      const newTime = input.value;
+      if (newTime && newTime !== item.start_time) {
+        await fetch(`/api/items/${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ start_time: newTime }),
+        });
+      }
+      await loadItems();
+    }
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = item.start_time; input.blur(); }
+    });
+  });
+}
+
+function initNoteEdit(block, item) {
+  block.addEventListener("dblclick", e => {
+    if (e.target.closest(".task-title-text, .task-action-btn, .task-duration-badge, .note-editor-panel")) return;
+    e.stopPropagation();
+    if (block.querySelector(".note-editor-panel")) return;
+
+    const panel = document.createElement("div");
+    panel.className = "note-editor-panel";
+    panel.innerHTML = `
+      <textarea class="note-editor-textarea" placeholder="记录日志和笔记…" rows="3">${escapeHtml(item.description || "")}</textarea>
+      <div class="note-editor-actions">
+        <span class="note-editor-hint">Ctrl+Enter 保存 · Esc 取消</span>
+        <button class="task-action-btn note-save-btn">保存</button>
+        <button class="task-action-btn note-cancel-btn">取消</button>
+      </div>
+    `;
+    block.appendChild(panel);
+    const ta = panel.querySelector(".note-editor-textarea");
+    ta.focus();
+
+    async function save() {
+      const newDesc = ta.value.trim();
+      if (newDesc !== (item.description || "").trim()) {
+        await fetch(`/api/items/${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: newDesc }),
+        });
+        item.description = newDesc;
+        let descEl = block.querySelector(".task-block-desc");
+        if (newDesc) {
+          if (!descEl) {
+            descEl = document.createElement("div");
+            descEl.className = "task-block-desc";
+            block.querySelector(".task-block-title").after(descEl);
+          }
+          descEl.textContent = newDesc;
+        } else if (descEl) {
+          descEl.remove();
+        }
+      }
+      panel.remove();
+    }
+
+    panel.querySelector(".note-save-btn").addEventListener("click", save);
+    panel.querySelector(".note-cancel-btn").addEventListener("click", () => panel.remove());
+    ta.addEventListener("keydown", e => {
+      if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); save(); }
+      if (e.key === "Escape") { e.preventDefault(); panel.remove(); }
+    });
+  });
+}
+
 function showExtendDialog(id, anchorBtn) {
   // Remove any existing extend dialog
   const existing = document.querySelector(".extend-dialog");
@@ -588,6 +700,53 @@ async function saveReorder(orderedItems) {
   await loadItems();
 }
 
+/* ── Pool item inline title edit ────────────────────────────────────── */
+function initPoolTitleEdit(el) {
+  const span = el.querySelector(".pool-item-content");
+  if (!span) return;
+  span.title = "双击编辑任务名";
+  span.style.cursor = "text";
+
+  span.addEventListener("dblclick", e => {
+    e.stopPropagation();
+    if (el.querySelector(".pool-title-input")) return;
+    const original = span.textContent;
+    const input = document.createElement("input");
+    input.className = "pool-title-input title-input";
+    input.value = original;
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+
+    async function save() {
+      const newContent = input.value.trim() || original;
+      if (newContent !== original) {
+        const isPoolItem = !el.classList.contains("pool-item-work");
+        const itemId = el.querySelector("[data-id]")?.dataset.id;
+        if (itemId) {
+          const url = isPoolItem ? `/api/pool/${itemId}` : `/api/items/${itemId}`;
+          await fetch(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: newContent }),
+          });
+        }
+      }
+      const newSpan = document.createElement("span");
+      newSpan.className = "pool-item-content";
+      newSpan.textContent = newContent;
+      input.replaceWith(newSpan);
+      initPoolTitleEdit(el);
+    }
+
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.value = original; input.blur(); }
+    });
+  });
+}
+
 /* ── Task Pool ─────────────────────────────────────────────────────── */
 function renderPool() {
   const list        = document.getElementById("pool-list");
@@ -635,6 +794,8 @@ function renderPool() {
     `;
     list.appendChild(el);
   });
+
+  list.querySelectorAll(".pool-item").forEach(el => initPoolTitleEdit(el));
 
   list.querySelectorAll(".work-schedule-btn").forEach(btn => {
     btn.addEventListener("click", () => scheduleWorkItem(parseInt(btn.dataset.id), btn));
@@ -1817,7 +1978,7 @@ async function autoExtendOverdue() {
   const now     = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
   const overdue = state.items.filter(it => {
-    if (it.status !== "pending" || !it.start_time) return false;
+    if (it.status !== "pending" || !it.start_time || it.pinned) return false;
     const start = timeToMinutes(it.start_time);
     return start != null && nowMins >= start + (it.duration_min || 60);
   });
