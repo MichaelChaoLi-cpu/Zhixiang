@@ -51,7 +51,7 @@ _ensure_python312() {
         # Linux: 尝试常见包管理器
         if command -v apt-get &>/dev/null; then
             echo "→ 通过 apt 安装 python3.12..." >&2
-            sudo apt-get update -qq && sudo apt-get install -y python3.12 python3.12-venv
+            sudo apt-get update -qq && sudo apt-get install -y python3.12 python3.12-venv python3-pip
         elif command -v dnf &>/dev/null; then
             echo "→ 通过 dnf 安装 python3.12..." >&2
             sudo dnf install -y python3.12
@@ -97,10 +97,24 @@ if [ "$NEED_VENV" = true ]; then
     "$PYTHON_BIN" -m venv "$VENV_DIR"
 fi
 
+# 确保 pip 可用（Ubuntu 上 python3.12-venv 可能不含 ensurepip）
+if [ ! -f "$VENV_DIR/bin/pip" ]; then
+    echo "→ pip 不存在，尝试通过 ensurepip 安装..."
+    "$VENV_DIR/bin/python" -m ensurepip --upgrade 2>/dev/null || true
+fi
+if [ ! -f "$VENV_DIR/bin/pip" ]; then
+    echo "→ ensurepip 不可用，尝试通过系统 pip 引导..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y python3-pip python3.12-venv 2>/dev/null || true
+        rm -rf "$VENV_DIR"
+        "$PYTHON_BIN" -m venv "$VENV_DIR"
+    fi
+fi
+
 # ── 3. 安装依赖 ───────────────────────────────────────────────────────────────
 echo "→ 安装 Python 依赖（首次较慢，请稍候）..."
-"$VENV_DIR/bin/pip" install -q --upgrade pip
-"$VENV_DIR/bin/pip" install -q -r "$REPO_DIR/requirement.txt"
+"$VENV_DIR/bin/python" -m pip install -q --upgrade pip
+"$VENV_DIR/bin/python" -m pip install -q -r "$REPO_DIR/requirement.txt"
 echo "→ 依赖安装完成"
 
 # ── 4. 确保 start.sh 可执行 ───────────────────────────────────────────────────
