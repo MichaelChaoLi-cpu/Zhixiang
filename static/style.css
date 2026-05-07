@@ -249,7 +249,7 @@ body {
 
 #input-main-row {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
 }
 
@@ -272,9 +272,14 @@ body {
   border-radius: 8px;
   color: var(--text);
   font-size: .83rem;
+  font-family: inherit;
   padding: 5px 10px;
   outline: none;
   transition: border-color .15s;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+  min-height: 30px;
 }
 #manual-input:focus { border-color: var(--accent); }
 
@@ -497,6 +502,20 @@ body {
   opacity: .6;
 }
 
+.task-block.suspended {
+  border-left-color: var(--text-dim);
+  background: repeating-linear-gradient(
+    135deg,
+    var(--surface),
+    var(--surface) 4px,
+    var(--surface2) 4px,
+    var(--surface2) 8px
+  );
+  opacity: .55;
+  cursor: default;
+  pointer-events: none;
+}
+
 /* Parallel layout */
 .task-block.parallel-left  { right: 52%; }
 .task-block.parallel-right { left: 52%; }
@@ -631,6 +650,69 @@ body {
   cursor: pointer;
   font-size: .75rem;
   padding: 0 3px;
+}
+
+/* Pool schedule dialog */
+.pool-schedule-dialog {
+  margin-top: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: .8rem;
+}
+.psd-title {
+  font-size: .75rem;
+  color: var(--text-dim);
+}
+.psd-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: .8rem;
+}
+.psd-input:focus { outline: none; border-color: var(--accent); }
+.psd-parsed {
+  font-size: .75rem;
+  color: var(--accent);
+}
+.psd-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.psd-parse-btn {
+  background: var(--accent-soft);
+  border: none;
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: .75rem;
+  cursor: pointer;
+}
+.psd-confirm-btn {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: .75rem;
+  cursor: pointer;
+}
+.psd-confirm-btn:disabled { opacity: .4; cursor: default; }
+.psd-cancel-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: .8rem;
+  margin-left: auto;
 }
 
 /* Empty state inside timeline */
@@ -790,6 +872,7 @@ body {
 
 .pool-item {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -797,6 +880,12 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 7px 10px;
+  flex-wrap: wrap;
+}
+
+/* Unscheduled work_items — left accent to distinguish from backlog pool items */
+.pool-item.pool-item-work {
+  border-left: 3px solid var(--accent-soft);
 }
 
 .pool-item-main {
