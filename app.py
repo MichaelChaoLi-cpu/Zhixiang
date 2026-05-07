@@ -179,6 +179,29 @@ def init_db():
     conn.close()
 
 
+def reschedule_stale_tasks():
+    """On startup, push any in-flight tasks (past start_time, still pending) to now+15min."""
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    now_mins = now.hour * 60 + now.minute
+    new_start = f"{(now_mins + 15) // 60:02d}:{(now_mins + 15) % 60:02d}"
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, start_time FROM work_items WHERE date=? AND status='pending' AND start_time IS NOT NULL",
+        (today,)
+    ).fetchall()
+    for row in rows:
+        start_mins = time_to_minutes(row["start_time"])
+        if start_mins is not None and start_mins <= now_mins:
+            conn.execute(
+                "UPDATE work_items SET start_time=? WHERE id=?",
+                (new_start, row["id"])
+            )
+    conn.commit()
+    conn.close()
+
+
 def call_llm(prompt: str) -> str:
     """Call the active LLM provider and return the response text."""
     provider = _env_read_key("LLM_PROVIDER") or "gemini"
@@ -1207,8 +1230,9 @@ if __name__ == "__main__":
             port += 1
 
     port = _find_free_port(int(os.environ.get("PORT", 4096)))
-    # Open browser after server starts (only on first launch, not reloader reload)
+    # Run once on first launch, not on reloader reload
     if os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        reschedule_stale_tasks()
         def _open():
             import time; time.sleep(1.2)
             webbrowser.open(f"http://localhost:{port}")
