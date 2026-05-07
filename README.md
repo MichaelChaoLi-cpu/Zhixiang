@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.4-blue)
+![Version](https://img.shields.io/badge/version-0.0.5-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-macOS-lightgrey)
@@ -121,6 +121,10 @@ Zhixiang/
 ---
 
 ## 版本历史
+
+### v0.0.5 (2026-05)
+- 网页顶栏新增"检测最新版本"按钮，自动执行 git pull 并在有更新时刷新页面
+- 时间轴范围调整为 07:00–22:00
 
 ### v0.0.4 (2026-05)
 - 时间轴范围调整为 07:00–22:00
