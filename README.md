@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.9-blue)
+![Version](https://img.shields.io/badge/version-0.0.10-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
@@ -177,6 +177,14 @@ Zhixiang/
 ---
 
 ## 版本历史 / Changelog
+
+### v0.0.10 (2026-05)
+- 挂起任务在时间轴上显示任务编号和任务名（与正常任务保持一致，仅样式不同）
+- 挂起任务支持双击写入日志 / 笔记
+- 挂起时自动将任务编号写入当日日志
+- 挂起后重新排期可获得新的任务编号
+- 挂起块高度过小时，鼠标移入自动展开显示完整内容
+- 挂起任务参与时间轴并列布局（不再堆叠在其他任务下方）
 
 ### v0.0.9 (2026-05)
 - 新增中英双语界面，点击顶栏 **EN** / **中文** 即时切换
