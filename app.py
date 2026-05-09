@@ -738,7 +738,6 @@ def schedule_generate():
         "SELECT id, content, duration_min, start_time FROM work_items WHERE date=? ORDER BY position ASC, id ASC",
         (date,)
     ).fetchall()
-    pool_items = conn.execute("SELECT id, content, duration_min FROM task_pool ORDER BY created_at").fetchall()
     conn.close()
 
     task_list = []
