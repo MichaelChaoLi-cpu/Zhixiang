@@ -662,7 +662,9 @@ function renderTimeline(items) {
   const scheduled = items.filter(it => it.start_time && it.status !== "suspended");
   const suspended = items.filter(it => it.start_time && it.status === "suspended");
 
-  const colMap = assignColumns(scheduled);
+  // Include suspended items in column assignment so they sit side-by-side with
+  // overlapping tasks rather than stacking on top.
+  const colMap = assignColumns([...scheduled, ...suspended]);
 
   suspended.forEach(item => {
     const startMins = timeToMinutes(item.start_time);
@@ -672,20 +674,35 @@ function renderTimeline(items) {
 
     const block = document.createElement("div");
     block.className = "task-block suspended";
+    if (height < 48) block.classList.add("compact");
     block.style.top    = top + "px";
     block.style.height = height + "px";
 
+    const layout = colMap.get(item.id) || { col: 0, totalCols: 1 };
+    if (layout.totalCols > 1) {
+      const pct = 100 / layout.totalCols;
+      block.style.left  = `calc(${layout.col * pct}% + 2px)`;
+      block.style.width = `calc(${pct}% - 4px)`;
+      block.style.right = "auto";
+    }
+
     const endTime = minutesToTime(startMins + (item.duration_min || 1));
+    const taskNoHtml = item.task_no
+      ? `<span class="task-no-badge">${escapeHtml(item.task_no)}</span>` : "";
+    const descHtml = item.description
+      ? `<div class="task-block-desc">${escapeHtml(item.description)}</div>` : "";
     block.innerHTML = `
       <div class="task-block-title">
-        <span class="task-title-text">⏸ ${escapeHtml(item.content)}</span>
+        ${taskNoHtml}<span class="task-title-text">⏸ ${escapeHtml(item.content)}</span>
       </div>
+      ${descHtml}
       <div class="task-block-meta">
         <span class="task-time-label">${item.start_time} – ${endTime}</span>
         <span class="task-duration-badge">${item.duration_min || 1}${t("durationUnit")}</span>
       </div>
     `;
     tracks.appendChild(block);
+    initNoteEdit(block, item);
   });
 
   scheduled.forEach(item => {
