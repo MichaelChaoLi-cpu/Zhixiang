@@ -513,7 +513,16 @@ body {
   );
   opacity: .55;
   cursor: default;
-  pointer-events: none;
+}
+.task-block.suspended.compact:hover {
+  height: auto !important;
+  min-height: 48px;
+  overflow: visible;
+  z-index: 50;
+  background: var(--surface2);
+  box-shadow: 0 6px 20px rgba(0,0,0,.55);
+  border-radius: 8px;
+  opacity: .85;
 }
 
 /* Parallel layout */

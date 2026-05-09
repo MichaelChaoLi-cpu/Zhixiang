@@ -1,6 +1,6 @@
 # 志翔 · Zhixiang
 
-![Version](https://img.shields.io/badge/version-0.0.9-blue)
+![Version](https://img.shields.io/badge/version-0.0.10-blue)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![macOS](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
@@ -100,9 +100,10 @@ Click **EN** / **中文** in the top bar to switch languages. All UI text and AI
 | 双击时间标签 | 直接修改任务起始时间 |
 | 点击时长徽章 | 直接修改任务时长 |
 | 双击任务名 | 内联编辑任务名称（任务池同样支持） |
-| 双击任务空白区 | 记录日志和笔记 |
+| 双击任务空白区 | 记录日志和笔记（挂起块同样支持） |
 | 📌 图钉 | 锁定起始时间，禁止拖拽 / 时间编辑 / 自动推移 |
-| 并行任务 | 时间重叠自动并列显示，不堆叠 |
+| 并行任务 | 时间重叠自动并列显示，不堆叠（挂起块参与并列布局） |
+| 挂起块悬停 | 块高度过小时，鼠标移入自动展开显示完整内容 |
 
 ### 任务编号 / Task Numbers
 
@@ -113,7 +114,7 @@ Click **EN** / **中文** in the top bar to switch languages. All UI text and AI
 | 操作 | 行为 |
 |------|------|
 | ✓ 完成 | 提前完成自动截断时长（精确记录实际用时） |
-| ⏸ 挂起 | 已消耗时段保留在时间轴，剩余部分移入任务池 |
+| ⏸ 挂起 | 已消耗时段保留在时间轴（显示原任务编号，可写笔记），剩余部分移入任务池；挂起时自动写入日志；从任务池重新排期后获得新编号 |
 | + 延长 | 手动延长；仅推移实际被覆盖的后续任务 |
 | 自动延长 | 到期未处理，每 15 分钟自动 +15 分钟（图钉任务不受影响） |
 
@@ -177,6 +178,14 @@ Zhixiang/
 ---
 
 ## 版本历史 / Changelog
+
+### v0.0.10 (2026-05)
+- 挂起任务在时间轴上显示任务编号和任务名（与正常任务保持一致，仅样式不同）
+- 挂起任务支持双击写入日志 / 笔记
+- 挂起时自动将任务编号写入当日日志
+- 挂起后重新排期可获得新的任务编号
+- 挂起块高度过小时，鼠标移入自动展开显示完整内容
+- 挂起任务参与时间轴并列布局（不再堆叠在其他任务下方）
 
 ### v0.0.9 (2026-05)
 - 新增中英双语界面，点击顶栏 **EN** / **中文** 即时切换

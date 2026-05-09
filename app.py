@@ -17,7 +17,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 app = Flask(__name__)
 
-__version__      = "0.0.9"
+__version__      = "0.0.10"
 
 DB_PATH          = os.path.join(os.path.dirname(__file__), "data", "schedule.db")
 LOGS_DIR         = os.path.join(os.path.dirname(__file__), "logs")
@@ -259,6 +259,18 @@ def write_log(date: str, transcript: str, items: list):
         if os.path.getsize(log_path) == 0:
             f.write(f"# {date} 工作日志\n")
         f.writelines(lines)
+
+
+def _write_suspend_log(date: str, task_no: str, content: str, elapsed: int, remaining: int):
+    os.makedirs(LOGS_DIR, exist_ok=True)
+    log_path = os.path.join(LOGS_DIR, f"{date}.md")
+    ts = datetime.now().strftime("%H:%M")
+    label = f"{task_no} {content}".strip()
+    line = f"\n## [{ts}] 任务挂起\n\n**{label}** 已挂起，已用时 {elapsed} 分钟，剩余 {remaining} 分钟移入任务池\n"
+    with open(log_path, "a", encoding="utf-8") as f:
+        if os.path.getsize(log_path) == 0:
+            f.write(f"# {date} 工作日志\n")
+        f.write(line)
 
 
 def transcribe_audio(audio_bytes: bytes, mime_type: str) -> str:
@@ -507,11 +519,13 @@ def suspend_item(item_id):
 
     if item.get("start_time") and elapsed > 0:
         # Keep the elapsed portion as a suspended record on the timeline
-        # Clear task_no so re-scheduling gets a fresh number
         conn.execute(
-            "UPDATE work_items SET status='suspended', duration_min=?, task_no=NULL WHERE id=?",
+            "UPDATE work_items SET status='suspended', duration_min=? WHERE id=?",
             (elapsed, item_id)
         )
+        # Write suspend event to daily log
+        task_no = item.get("task_no") or ""
+        _write_suspend_log(item["date"], task_no, item["content"], elapsed, remaining_duration)
         # Add remaining task back to pool
         conn.execute(
             "INSERT INTO task_pool (content, duration_min, suspended_from) VALUES (?, ?, ?)",
@@ -724,7 +738,6 @@ def schedule_generate():
         "SELECT id, content, duration_min, start_time FROM work_items WHERE date=? ORDER BY position ASC, id ASC",
         (date,)
     ).fetchall()
-    pool_items = conn.execute("SELECT id, content, duration_min FROM task_pool ORDER BY created_at").fetchall()
     conn.close()
 
     task_list = []
